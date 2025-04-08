@@ -1,3 +1,5 @@
 /target
 fastchess-ubuntu-22.04*
 engines
+config.json
+run.sh
