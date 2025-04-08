@@ -1,3 +1,5 @@
+use std::i32;
+
 use chessing::{bitboard::BitInt, game::{action::Action, Board, GameState, Team}, uci::{respond::Info, Uci}};
 
 use crate::util::current_time_millis;
@@ -60,22 +62,28 @@ fn eval<T: BitInt>(board: &mut Board<T>) -> i32 {
     score
 }
 
-pub fn search<T: BitInt>(board: &mut Board<T>, info: &mut SearchInfo, depth: i32) -> i32 {
+pub const MAX: i32 = 1_000_000;
+pub const MIN: i32 = -1_000_000;
+
+pub fn search<T: BitInt>(
+    board: &mut Board<T>, 
+    info: &mut SearchInfo,
+    depth: i32,
+    mut alpha: i32, 
+    beta: i32, 
+) -> i32 {
     if depth == 0 {
         return eval(board);
     }
-
-    let mut max = i32::MIN;
-    let mut best_move: Option<Action> = None;
 
     let legal_actions = board.list_legal_actions();
 
     match board.game_state(&legal_actions) {
         GameState::Win(Team::White) => {
-            return i32::MAX * team_to_move(board);
+            return MAX * team_to_move(board);
         }
         GameState::Win(Team::Black) => {
-            return i32::MIN * team_to_move(board);
+            return MAX * team_to_move(board);
         }
         GameState::Draw => {
             return 0;
@@ -85,17 +93,28 @@ pub fn search<T: BitInt>(board: &mut Board<T>, info: &mut SearchInfo, depth: i32
         }
     }
 
+    let mut max = i32::MIN;
+    let mut best_move: Option<Action> = None;
+
     for act in legal_actions {
         let history = board.play(act);
 
         info.nodes += 1;
 
-        let score = -search(board, info, depth - 1);
+        let score = -search(board, info, depth - 1, -beta, -alpha);
         board.state.restore(history);
 
         if score > max {
             max = score;
             best_move = Some(act);
+
+            if score > alpha {
+                alpha = score;
+            }
+        }
+
+        if score >= beta {
+            break;
         }
     }
 
@@ -118,7 +137,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, max_time:
         let start = current_time_millis();
 
         info.root_depth = depth;
-        let score = search(board, &mut info, depth);
+        let score = search(board, &mut info, depth, MIN, MAX);
         info.score = score;
 
         let end = current_time_millis();
