@@ -30,6 +30,21 @@ pub fn search<T: BitInt>(board: &mut Board<T>, info: &mut SearchInfo, depth: i32
 
     let legal_actions = board.list_legal_actions();
 
+    match board.game_state(&legal_actions) {
+        GameState::Win(Team::White) => {
+            return i32::MAX * team_to_move(board);
+        }
+        GameState::Win(Team::Black) => {
+            return i32::MIN * team_to_move(board);
+        }
+        GameState::Draw => {
+            return 0;
+        }
+        GameState::Ongoing => {
+            // continue evaluation
+        }
+    }
+
     for act in legal_actions {
         let history = board.play(act);
 
