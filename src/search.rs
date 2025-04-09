@@ -252,9 +252,9 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, soft_time
         score: 0
     };
 
+    let start = current_time_millis();
+    
     for depth in 1..100 {
-        let start = current_time_millis();
-        
         info.root_depth = depth;
         let score = search(board, &mut info, depth, 0, MIN, MAX);
         info.score = score;
