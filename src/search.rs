@@ -45,9 +45,9 @@ pub fn search<T: BitInt>(
     }
 
     legal_actions.sort_by(|&a, &b| {
-        if opps.and(BitBoard::index(a.to)).is_set() {
+        if board.state.mailbox[a.to as usize] > 0 {
             Ordering::Less
-        } else if opps.and(BitBoard::index(b.to)).is_set() {
+        } else if board.state.mailbox[b.to as usize] > 0 {
             Ordering::Greater
         } else {
             Ordering::Equal
