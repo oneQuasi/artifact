@@ -76,6 +76,9 @@ pub fn quiescence<T: BitInt>(
             captures.push(act);
         }
     }
+    captures.sort_by(|&a, &b| {
+        mvv_lva(board, b).cmp(&mvv_lva(board, a))
+    });
 
     for act in captures {
         let history = board.play(act);
