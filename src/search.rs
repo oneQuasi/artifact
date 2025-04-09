@@ -37,6 +37,62 @@ fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>
     return BitBoard::index(action.to).and(opps).is_set();
 }
 
+pub fn quiescence<T: BitInt>(
+    board: &mut Board<T>, 
+    info: &mut SearchInfo,
+    mut alpha: i32, 
+    beta: i32, 
+) -> i32 {
+    let stand_pat = eval(board);
+    let mut best = stand_pat;
+
+    if stand_pat >= beta {
+        return stand_pat;
+    }
+
+    if stand_pat > alpha {
+        alpha = stand_pat;
+    }
+
+    let actions = board.list_actions();
+    let opps = board.state.opposite_team();
+    let mut captures = Vec::with_capacity(actions.len());
+
+    for act in actions {
+        if is_capture(board, act, opps) {
+            captures.push(act);
+        }
+    }
+
+    for act in captures {
+        let history = board.play(act);
+        let is_legal = board.game.processor.is_legal(board);
+
+        if !is_legal {
+            board.state.restore(history);
+            continue;
+        }
+
+        info.nodes += 1;
+
+        let score = -quiescence(board, info, -beta, -alpha);
+        board.state.restore(history);
+
+        if score > best {
+            best = score;
+            if score > alpha {
+                alpha = score;
+            }
+        }
+
+        if score >= beta {
+            break;
+        }
+    }
+
+    best
+}
+
 pub fn search<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
@@ -46,7 +102,7 @@ pub fn search<T: BitInt>(
     beta: i32, 
 ) -> i32 {
     if depth == 0 {
-        return eval(board);
+        return quiescence(board, info, alpha, beta);
     }
 
     let mut legal_actions = board.list_legal_actions();
@@ -71,7 +127,7 @@ pub fn search<T: BitInt>(
         mvv_lva(board, b, opps).cmp(&mvv_lva(board, a, opps))
     });
 
-    let mut max = i32::MIN;
+    let mut best = i32::MIN;
     let mut best_move: Option<Action> = None;
 
     for act in legal_actions {
@@ -82,10 +138,9 @@ pub fn search<T: BitInt>(
         let score = -search(board, info, depth - 1, ply + 1, -beta, -alpha);
         board.state.restore(history);
 
-        if score > max {
-            max = score;
+        if score > best {
+            best = score;
             best_move = Some(act);
-
             if score > alpha {
                 alpha = score;
             }
@@ -100,7 +155,7 @@ pub fn search<T: BitInt>(
         info.best_move = best_move;
     }
 
-    max
+    best
 }
 
 pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, max_time: u64) -> SearchInfo {
