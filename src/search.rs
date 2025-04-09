@@ -7,6 +7,7 @@ use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
 pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
+    pub history: Vec<Vec<Vec<i32>>>,
     pub nodes: u64,
     pub score: i32
 }
@@ -14,19 +15,31 @@ pub struct SearchInfo {
 pub const MAX: i32 = 1_000_000;
 pub const MIN: i32 = -1_000_000;
 
-fn mvv_lva<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> i32 {
-    if !is_capture(board, action, opps) {
-        return -10000;
-    }
-
+fn mvv_lva<T: BitInt>(
+    board: &mut Board<T>, 
+    action: Action,
+) -> i32 {
     let attacker_type = board.state.mailbox[action.from as usize] - 1;
     let victim_type = board.state.mailbox[action.to as usize] - 1;
 
     let attacker_value = MATERIAL[attacker_type as usize];
     let victim_value = MATERIAL[victim_type as usize];
 
-    victim_value - attacker_value
+    1000 + (victim_value - attacker_value)
 }   
+
+fn score<T: BitInt>(
+    board: &mut Board<T>, 
+    info: &mut SearchInfo,
+    action: Action, 
+    opps: BitBoard<T>
+) -> i32 {
+    if is_capture(board, action, opps) {
+        mvv_lva(board, action)
+    } else {
+        info.history[board.state.moving_team.index()][action.from as usize][action.to as usize]
+    }
+}
 
 fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
     let to_idx = action.to as usize;
@@ -124,7 +137,7 @@ pub fn search<T: BitInt>(
     }
 
     legal_actions.sort_by(|&a, &b| {
-        mvv_lva(board, b, opps).cmp(&mvv_lva(board, a, opps))
+        score(board, info, b, opps).cmp(&score(board, info, a, opps))
     });
 
     let mut best = i32::MIN;
@@ -147,6 +160,10 @@ pub fn search<T: BitInt>(
         }
 
         if score >= beta {
+            if !is_capture(board, act, opps) {
+                info.history[board.state.moving_team.index()][act.from as usize][act.to as usize] += depth * depth;
+            }
+
             break;
         }
     }
@@ -159,9 +176,12 @@ pub fn search<T: BitInt>(
 }
 
 pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, max_time: u64) -> SearchInfo {
+    let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
+
     let mut info = SearchInfo {
         root_depth: 0,
         best_move: None,
+        history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         nodes: 0,
         score: 0
     };
