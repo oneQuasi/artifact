@@ -222,7 +222,7 @@ pub fn search<T: BitInt>(
             break;
         }
     }
-
+    
     if depth == info.root_depth {
         info.best_move = best_move;
     }
@@ -238,14 +238,14 @@ pub fn search<T: BitInt>(
     best
 }
 
-pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, max_time: u64) -> SearchInfo {
+pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, soft_time: u64) -> SearchInfo {
     let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
 
     let mut info = SearchInfo {
         root_depth: 0,
         best_move: None,
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
-        zobrist: board.game.processor.gen_zobrist(board),
+        zobrist: board.game.processor.gen_zobrist(board, 64),
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
         nodes: 0,
@@ -254,14 +254,14 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, max_time:
 
     for depth in 1..100 {
         let start = current_time_millis();
-
+        
         info.root_depth = depth;
         let score = search(board, &mut info, depth, 0, MIN, MAX);
         info.score = score;
 
-        let end = current_time_millis();
+        let current_time = current_time_millis();
 
-        let mut time = (end - start) as u64;
+        let mut time = (current_time - start) as u64;
         if time == 0 { time = 1; }
 
         uci.info(Info {
@@ -274,7 +274,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, max_time:
             ..Default::default()
         });
 
-        if time > max_time {
+        if time > soft_time {
             break;   
         }
     }
