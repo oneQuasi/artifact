@@ -13,6 +13,8 @@ pub const BISHOP: i32 = 333;
 pub const ROOK: i32 = 563;
 pub const QUEEN: i32 = 950;
 
+pub const MATERIAL: [ i32; 6 ] = [ PAWN, KNIGHT, BISHOP, ROOK, QUEEN, 0 ];
+
 pub fn eval<T: BitInt>(board: &mut Board<T>) -> i32 {
     let mut score = 0;
 

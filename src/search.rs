@@ -2,7 +2,7 @@ use std::{cmp::Ordering, i32};
 
 use chessing::{bitboard::{BitBoard, BitInt}, game::{action::Action, Board, GameState, Team}, uci::{respond::Info, Uci}};
 
-use crate::{eval::eval, util::current_time_millis};
+use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
 
 pub struct SearchInfo {
     pub root_depth: i32,
@@ -13,6 +13,20 @@ pub struct SearchInfo {
 
 pub const MAX: i32 = 1_000_000;
 pub const MIN: i32 = -1_000_000;
+
+fn mvv_lva<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> i32 {
+    if !is_capture(board, action, opps) {
+        return -10000;
+    }
+
+    let attacker_type = board.state.mailbox[action.from as usize] - 1;
+    let victim_type = board.state.mailbox[action.to as usize] - 1;
+
+    let attacker_value = MATERIAL[attacker_type as usize];
+    let victim_value = MATERIAL[victim_type as usize];
+
+    victim_value - attacker_value
+}   
 
 fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
     let to_idx = action.to as usize;
@@ -54,13 +68,7 @@ pub fn search<T: BitInt>(
     }
 
     legal_actions.sort_by(|&a, &b| {
-        if is_capture(board, a, opps) {
-            Ordering::Less
-        } else if is_capture(board, b, opps) {
-            Ordering::Greater
-        } else {
-            Ordering::Equal
-        }
+        mvv_lva(board, b, opps).cmp(&mvv_lva(board, a, opps))
     });
 
     let mut max = i32::MIN;
