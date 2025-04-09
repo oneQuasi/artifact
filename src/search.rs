@@ -4,10 +4,21 @@ use chessing::{bitboard::{BitBoard, BitInt}, game::{action::Action, zobrist::Zob
 
 use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
 
-#[derive(Clone)]
+
+#[derive(Clone, Debug, Copy)]
+pub enum Bounds {
+    Exact,
+    Lower,
+    Upper
+}
+
+#[derive(Clone, Debug)]
 pub struct TtEntry {
     pub hash: u64,
-    pub best_move: Option<Action>
+    pub best_move: Option<Action>,
+    pub score: i32,
+    pub depth: i32,
+    pub bounds: Bounds
 }
 
 pub struct SearchInfo {
@@ -143,6 +154,16 @@ pub fn search<T: BitInt>(
     let mut found_best_move: Option<Action> = None;
     if let Some(entry) = &info.tt[index] {
         if hash == entry.hash {
+            let is_in_bounds = match entry.bounds {
+                Bounds::Exact => true,
+                Bounds::Lower => entry.score >= beta,
+                Bounds::Upper => entry.score < alpha
+            };
+
+            if entry.depth >= depth && is_in_bounds {
+                return entry.score;
+            }
+
             found_best_move = entry.best_move;
         }
     }
@@ -172,6 +193,8 @@ pub fn search<T: BitInt>(
     let mut best = i32::MIN;
     let mut best_move: Option<Action> = None;
 
+    let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
+
     for act in legal_actions {
         let history = board.play(act);
 
@@ -184,11 +207,14 @@ pub fn search<T: BitInt>(
             best = score;
             best_move = Some(act);
             if score > alpha {
+                bounds = Bounds::Exact; // PV-node: move exceeded alpha but not beta
                 alpha = score;
             }
         }
 
         if score >= beta {
+            bounds = Bounds::Lower; // CUT-node: beta-cutoff was performed
+
             if !is_capture(board, act, opps) {
                 info.history[board.state.moving_team.index()][act.from as usize][act.to as usize] += depth * depth;
             }
@@ -201,7 +227,13 @@ pub fn search<T: BitInt>(
         info.best_move = best_move;
     }
 
-    info.tt[index] = Some(TtEntry { hash, best_move });
+    info.tt[index] = Some(TtEntry { 
+        hash, 
+        best_move,
+        depth,
+        bounds,
+        score: best
+    });
 
     best
 }
