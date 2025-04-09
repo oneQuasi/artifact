@@ -80,10 +80,10 @@ pub fn search<T: BitInt>(
 
     match board.game_state(&legal_actions) {
         GameState::Win(Team::White) => {
-            return MAX * team_to_move(board);
+            return (MAX + depth) * team_to_move(board);
         }
         GameState::Win(Team::Black) => {
-            return MAX * team_to_move(board);
+            return (MAX - depth) * team_to_move(board);
         }
         GameState::Draw => {
             return 0;
