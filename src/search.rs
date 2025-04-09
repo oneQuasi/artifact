@@ -21,6 +21,8 @@ pub struct TtEntry {
     pub bounds: Bounds
 }
 
+#[derive(Clone, Debug, Copy)]
+pub struct ScoredAction(pub Action, pub i32);
 pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
@@ -53,22 +55,38 @@ pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
 fn score<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
-    ply: i32,
-    action: Action, 
+    act: Action, 
     opps: BitBoard<T>,
     found_best_move: Option<Action>
 ) -> i32 {
     if let Some(found_best_move) = found_best_move {
-        if found_best_move == action {
+        if found_best_move == act {
             return HIGH_PRIORITY * 2;
         }
     }
 
-    if is_capture(board, action, opps) {
-        return HIGH_PRIORITY + mvv_lva(board, action);
+    if is_capture(board, act, opps) {
+        return HIGH_PRIORITY + mvv_lva(board, act);
     }
 
-    info.history[board.state.moving_team.index()][action.from as usize][action.to as usize]
+    info.history[board.state.moving_team.index()][act.from as usize][act.to as usize]
+}
+
+fn sort_actions<T: BitInt>(
+    board: &mut Board<T>, 
+    info: &mut SearchInfo,
+    opps: BitBoard<T>,
+    actions: Vec<Action>,
+    found_best_move: Option<Action>
+) -> Vec<ScoredAction> {
+    let mut scored = vec![];
+    for act in actions {
+        scored.push(ScoredAction(act, score(board, info, act, opps, found_best_move)))
+    }
+
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
+
+    scored
 }
 
 fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
@@ -190,16 +208,14 @@ pub fn search<T: BitInt>(
         }
     }
 
-    legal_actions.sort_by(|&a, &b| {
-        score(board, info, ply, b, opps, found_best_move).cmp(&score(board, info, ply, a, opps, found_best_move))
-    });
+    let scored_actions = sort_actions(board, info, opps, legal_actions, found_best_move);
 
     let mut best = i32::MIN;
     let mut best_move: Option<Action> = None;
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
-    for act in legal_actions {
+    for ScoredAction(act, _) in scored_actions {
         let history = board.play(act);
 
         info.nodes += 1;
