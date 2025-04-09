@@ -1,6 +1,6 @@
-use std::i32;
+use std::{cmp::Ordering, i32};
 
-use chessing::{bitboard::BitInt, game::{action::Action, Board, GameState, Team}, uci::{respond::Info, Uci}};
+use chessing::{bitboard::{BitBoard, BitInt}, game::{action::Action, Board, GameState, Team}, uci::{respond::Info, Uci}};
 
 use crate::util::current_time_millis;
 
@@ -77,7 +77,8 @@ pub fn search<T: BitInt>(
         return eval(board);
     }
 
-    let legal_actions = board.list_legal_actions();
+    let mut legal_actions = board.list_legal_actions();
+    let opps = board.state.opposite_team();
 
     match board.game_state(&legal_actions) {
         GameState::Win(Team::White) => {
@@ -93,6 +94,16 @@ pub fn search<T: BitInt>(
             // continue evaluation
         }
     }
+
+    legal_actions.sort_by(|&a, &b| {
+        if opps.and(BitBoard::index(a.to)).is_set() {
+            Ordering::Less
+        } else if opps.and(BitBoard::index(b.to)).is_set() {
+            Ordering::Greater
+        } else {
+            Ordering::Equal
+        }
+    });
 
     let mut max = i32::MIN;
     let mut best_move: Option<Action> = None;
