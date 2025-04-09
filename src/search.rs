@@ -14,6 +14,15 @@ pub struct SearchInfo {
 pub const MAX: i32 = 1_000_000;
 pub const MIN: i32 = -1_000_000;
 
+fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
+    let to_idx = action.to as usize;
+    if board.state.mailbox[to_idx] == 0 {
+        return false;
+    }
+
+    return BitBoard::index(action.to).and(opps).is_set();
+}
+
 pub fn search<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
@@ -45,9 +54,9 @@ pub fn search<T: BitInt>(
     }
 
     legal_actions.sort_by(|&a, &b| {
-        if board.state.mailbox[a.to as usize] > 0 {
+        if is_capture(board, a, opps) {
             Ordering::Less
-        } else if board.state.mailbox[b.to as usize] > 0 {
+        } else if is_capture(board, b, opps) {
             Ordering::Greater
         } else {
             Ordering::Equal
