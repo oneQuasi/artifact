@@ -79,28 +79,26 @@ const MG_KING_TABLE: [i32; 64] = [
    -15,  36,  12, -54,   8, -28,  24,  14,
 ];
 
+const fn flip_sq(sq: u8) -> u8 {
+    sq ^ 56
+}
+
 const fn flip(table: [i32; 64]) -> [i32; 64] {
     let mut flipped = [0; 64];
-    let mut rank = 0;
-    while rank < 8 {
-        let mut file = 0;
-        while file < 8 {
-            let from_index = rank * 8 + file;
-            let to_index = (7 - rank) * 8 + file;
-            flipped[to_index] = table[from_index];
-            file += 1;
-        }
-        rank += 1;
+    let mut i = 0;
+    while i < 64 {
+        flipped[flip_sq(i as u8) as usize] = table[i];
+        i += 1;
     }
     flipped
 }
 
-const MG_PAWN_TABLE_BLACK: [i32; 64] = flip(MG_PAWN_TABLE);
-const MG_KNIGHT_TABLE_BLACK: [i32; 64] = flip(MG_KNIGHT_TABLE);
-const MG_BISHOP_TABLE_BLACK: [i32; 64] = flip(MG_BISHOP_TABLE);
-const MG_ROOK_TABLE_BLACK: [i32; 64] = flip(MG_ROOK_TABLE);
-const MG_QUEEN_TABLE_BLACK: [i32; 64] = flip(MG_QUEEN_TABLE);
-const MG_KING_TABLE_BLACK: [i32; 64] = flip(MG_KING_TABLE);
+const MG_PAWN_TABLE_WHITE: [i32; 64] = flip(MG_PAWN_TABLE);
+const MG_KNIGHT_TABLE_WHITE: [i32; 64] = flip(MG_KNIGHT_TABLE);
+const MG_BISHOP_TABLE_WHITE: [i32; 64] = flip(MG_BISHOP_TABLE);
+const MG_ROOK_TABLE_WHITE: [i32; 64] = flip(MG_ROOK_TABLE);
+const MG_QUEEN_TABLE_WHITE: [i32; 64] = flip(MG_QUEEN_TABLE);
+const MG_KING_TABLE_WHITE: [i32; 64] = flip(MG_KING_TABLE);
 
 pub const MATERIAL: [ i32; 6 ] = [ PAWN, KNIGHT, BISHOP, ROOK, QUEEN, 0 ];
 
@@ -138,60 +136,60 @@ pub fn eval<T: BitInt>(board: &mut Board<T>) -> i32 {
 
     for pawn in white_pawns.iter() {
         score += PAWN;
-        score += MG_PAWN_TABLE[pawn as usize];
+        score += MG_PAWN_TABLE_WHITE[pawn as usize];
     }
 
     for pawn in black_pawns.iter() {
         score -= PAWN;
-        score -= MG_PAWN_TABLE_BLACK[pawn as usize];
+        score -= MG_PAWN_TABLE[pawn as usize];
     }
 
     for knight in white_knights.iter() {
         score += KNIGHT;
-        score += MG_KNIGHT_TABLE[knight as usize];
+        score += MG_KNIGHT_TABLE_WHITE[knight as usize];
     }
 
     for knight in black_knights.iter() {
         score -= KNIGHT;
-        score -= MG_KNIGHT_TABLE_BLACK[knight as usize];
+        score -= MG_KNIGHT_TABLE[knight as usize];
     }
 
     for bishop in white_bishops.iter() {
         score += BISHOP;
-        score += MG_BISHOP_TABLE[bishop as usize];
+        score += MG_BISHOP_TABLE_WHITE[bishop as usize];
     }
 
     for bishop in black_bishops.iter() {
         score -= BISHOP;
-        score -= MG_BISHOP_TABLE_BLACK[bishop as usize];
+        score -= MG_BISHOP_TABLE[bishop as usize];
     }
 
     for rook in white_rooks.iter() {
         score += ROOK;
-        score += MG_ROOK_TABLE[rook as usize];
+        score += MG_ROOK_TABLE_WHITE[rook as usize];
     }
 
     for rook in black_rooks.iter() {
         score -= ROOK;
-        score -= MG_ROOK_TABLE_BLACK[rook as usize];
+        score -= MG_ROOK_TABLE[rook as usize];
     }
 
     for queen in white_queens.iter() {
         score += QUEEN;
-        score += MG_QUEEN_TABLE[queen as usize];
+        score += MG_QUEEN_TABLE_WHITE[queen as usize];
     }
 
     for queen in black_queens.iter() {
         score -= QUEEN;
-        score -= MG_QUEEN_TABLE_BLACK[queen as usize];
+        score -= MG_QUEEN_TABLE[queen as usize];
     }
 
     for king in white_king.iter() {
-        score += MG_KING_TABLE[king as usize];
+        score += MG_KING_TABLE_WHITE[king as usize];
     }
 
     for king in black_king.iter() {
-        score -= MG_KING_TABLE_BLACK[king as usize];
+        score -= MG_KING_TABLE[king as usize];
     }
 
     // Continue for knight, bishop, rook, queen, king
