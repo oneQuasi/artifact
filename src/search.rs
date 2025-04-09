@@ -69,6 +69,7 @@ pub fn search<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
     depth: i32,
+    ply: i32,
     mut alpha: i32, 
     beta: i32, 
 ) -> i32 {
@@ -80,10 +81,10 @@ pub fn search<T: BitInt>(
 
     match board.game_state(&legal_actions) {
         GameState::Win(Team::White) => {
-            return MIN + depth;
+            return MIN + ply;
         }
         GameState::Win(Team::Black) => {
-            return MIN + depth;
+            return MIN + ply;
         }
         GameState::Draw => {
             return 0;
@@ -101,7 +102,7 @@ pub fn search<T: BitInt>(
 
         info.nodes += 1;
 
-        let score = -search(board, info, depth - 1, -beta, -alpha);
+        let score = -search(board, info, depth - 1, ply + 1, -beta, -alpha);
         board.state.restore(history);
 
         if score > max {
@@ -137,7 +138,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, max_time:
         let start = current_time_millis();
 
         info.root_depth = depth;
-        let score = search(board, &mut info, depth, MIN, MAX);
+        let score = search(board, &mut info, depth, 0, MIN, MAX);
         info.score = score;
 
         let end = current_time_millis();
