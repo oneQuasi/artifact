@@ -13,6 +13,7 @@ List of current features:
     - Move Ordering:
         - [MVV-LVA](https://www.chessprogramming.org/MVV-LVA)
         - [History Heuristic](https://www.chessprogramming.org/History_Heuristic)
+        - [Transposition Table](https://www.chessprogramming.org/Transposition_Table)
 - Evaluation:
     - [Stalemate](https://www.chessprogramming.org/Stalemate)
     - [Checkmate](https://www.chessprogramming.org/Checkmate), prioritizes faster checkmates
