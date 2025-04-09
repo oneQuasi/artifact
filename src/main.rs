@@ -14,6 +14,9 @@ fn main() {
     let chess = Chess::create::<u64>();
     let mut board = chess.default();
 
+    let mut hashes: Vec<u64> = vec![];
+    let zobrist = board.game.processor.gen_zobrist(&mut board, 64);
+
     for line in stdin.lines() {
         let line = line.expect("Line is set");
 
@@ -56,7 +59,8 @@ fn main() {
                     soft_time = 300;
                 }
 
-                let info = iterative_deepening(&uci, &mut board, soft_time);
+                let zobrist = board.game.processor.gen_zobrist(&mut board, 64);
+                let info = iterative_deepening(&uci, &mut board, soft_time, zobrist, hashes.clone());
 
                 let action = info.best_move.expect("There's a best move, right?");
                 let action_display = board.display_uci_action(action);
@@ -76,7 +80,11 @@ fn main() {
                     }
                 }
 
+                hashes = vec![];
+
                 for act in moves {
+                    hashes.push(chess.processor.hash(&mut board, &zobrist));
+
                     board.play_action(&act);
                 }
             }

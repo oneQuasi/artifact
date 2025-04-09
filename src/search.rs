@@ -28,6 +28,7 @@ pub struct SearchInfo {
     pub best_move: Option<Action>,
     pub history: Vec<Vec<Vec<i32>>>,
     pub zobrist: ZobristTable,
+    pub hashes: Vec<u64>,
     pub tt: Vec<Option<TtEntry>>,
     pub tt_size: u64,
     pub nodes: u64,
@@ -190,7 +191,7 @@ pub fn search<T: BitInt>(
         }
     }
 
-    let mut legal_actions = board.list_legal_actions();
+    let legal_actions = board.list_legal_actions();
     let opps = board.state.opposite_team();
 
     match board.game_state(&legal_actions) {
@@ -207,6 +208,12 @@ pub fn search<T: BitInt>(
             // continue evaluation
         }
     }
+
+    if info.hashes.contains(&hash) && ply > 0 {
+        return 0;
+    }
+    
+    info.hashes.push(hash);
 
     let scored_actions = sort_actions(board, info, opps, legal_actions, found_best_move);
 
@@ -255,17 +262,20 @@ pub fn search<T: BitInt>(
         score: best
     });
 
+    info.hashes.pop();
+
     best
 }
 
-pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, soft_time: u64) -> SearchInfo {
+pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, soft_time: u64, zobrist: ZobristTable, hashes: Vec<u64>) -> SearchInfo {
     let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
 
     let mut info = SearchInfo {
         root_depth: 0,
         best_move: None,
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
-        zobrist: board.game.processor.gen_zobrist(board, 64),
+        hashes,
+        zobrist,
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
         nodes: 0,
