@@ -1,11 +1,11 @@
 use std::{io, thread, time::Duration};
 
 use chessing::{chess::Chess, game::{GameTemplate, Team}, uci::{parse::{GoOption, UciCommand, UciPosition}, respond::Info, Uci}};
-use fastrand::choice;
 use search::{iterative_deepening, search, SearchInfo};
 
 mod search;
 mod util;
+mod eval;
 
 fn main() {
     let uci = Uci;
