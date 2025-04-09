@@ -14,6 +14,9 @@ fn main() {
     let chess = Chess::create::<u64>();
     let mut board = chess.default();
 
+    let mut hashes: Vec<u64> = vec![];
+    let zobrist = board.game.processor.gen_zobrist(&mut board, 64);
+
     for line in stdin.lines() {
         let line = line.expect("Line is set");
 
@@ -22,41 +25,42 @@ fn main() {
                 uci.uciok();
             }
             UciCommand::Go { options } => {
-                let mut max_time = None::<u64>;
+                let mut soft_time = 0;
                 let team = board.state.moving_team;
                 
                 for option in options {
                     match option {
                         GoOption::BTime(time) => {
                             if team == Team::Black {
-                                max_time = max_time.map(|el| el + (time / 300)).or(Some(time / 300));
+                                soft_time += time / 300;
                             }
                         }
                         GoOption::BInc(inc) => {
-                            if team == Team::Black {
-                                max_time = max_time.map(|el| el + (inc / 30)).or(Some(inc / 30));
-                            }
+                            soft_time += inc / 30;
                         }
                         GoOption::WTime(time) => {
                             if team == Team::White {
-                                max_time = max_time.map(|el| el + (time / 300)).or(Some(time / 300));
+                                soft_time += time / 300;
                             }
                         }
                         GoOption::WInc(inc) => {
                             if team == Team::White {
-                                max_time = max_time.map(|el| el + (inc / 30)).or(Some(inc / 30));
+                                soft_time += inc / 30;
                             }
                         }
                         GoOption::MoveTime(time) => {
-                            max_time = Some(time / 10);
+                            soft_time += time / 10;
                         }
                         _ => {}
                     }
                 }
 
-                let max_time = max_time.unwrap_or(300);
+                if soft_time == 0 {
+                    soft_time = 300;
+                }
 
-                let info = iterative_deepening(&uci, &mut board, max_time);
+                let zobrist = board.game.processor.gen_zobrist(&mut board, 64);
+                let info = iterative_deepening(&uci, &mut board, soft_time, zobrist, hashes.clone());
 
                 let action = info.best_move.expect("There's a best move, right?");
                 let action_display = board.display_uci_action(action);
@@ -76,7 +80,11 @@ fn main() {
                     }
                 }
 
+                hashes = vec![];
+
                 for act in moves {
+                    hashes.push(chess.processor.hash(&mut board, &zobrist));
+
                     board.play_action(&act);
                 }
             }
