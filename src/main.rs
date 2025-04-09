@@ -1,4 +1,4 @@
-use std::{io, thread, time::Duration};
+use std::{io, process, thread, time::Duration};
 
 use chessing::{chess::Chess, game::{GameTemplate, Team}, uci::{parse::{GoOption, UciCommand, UciPosition}, respond::Info, Uci}};
 use search::{iterative_deepening, search, SearchInfo};
@@ -47,6 +47,9 @@ fn main() {
                                 max_time = max_time.map(|el| el + (inc / 30)).or(Some(inc / 30));
                             }
                         }
+                        GoOption::MoveTime(time) => {
+                            max_time = Some(time / 10);
+                        }
                         _ => {}
                     }
                 }
@@ -78,7 +81,7 @@ fn main() {
                 }
             }
             UciCommand::Quit() => {
-                // TODO
+                process::exit(0x100);
             }
             UciCommand::Stop() => {
                 // TODO

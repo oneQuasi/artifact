@@ -1,13 +1,22 @@
 use std::{cmp::Ordering, i32};
 
-use chessing::{bitboard::{BitBoard, BitInt}, game::{action::Action, Board, GameState, Team}, uci::{respond::Info, Uci}};
+use chessing::{bitboard::{BitBoard, BitInt}, game::{action::Action, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
 
 use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
+
+#[derive(Clone)]
+pub struct TtEntry {
+    pub hash: u64,
+    pub best_move: Option<Action>
+}
 
 pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
     pub history: Vec<Vec<Vec<i32>>>,
+    pub zobrist: ZobristTable,
+    pub tt: Vec<Option<TtEntry>>,
+    pub tt_size: u64,
     pub nodes: u64,
     pub score: i32
 }
@@ -32,13 +41,20 @@ fn score<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
     action: Action, 
-    opps: BitBoard<T>
+    opps: BitBoard<T>,
+    found_best_move: Option<Action>
 ) -> i32 {
-    if is_capture(board, action, opps) {
-        mvv_lva(board, action)
-    } else {
-        info.history[board.state.moving_team.index()][action.from as usize][action.to as usize]
+    if let Some(found_best_move) = found_best_move {
+        if found_best_move == action {
+            return 3000;
+        }
     }
+
+    if is_capture(board, action, opps) {
+        return mvv_lva(board, action);
+    }
+    
+    info.history[board.state.moving_team.index()][action.from as usize][action.to as usize]
 }
 
 fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
@@ -121,6 +137,16 @@ pub fn search<T: BitInt>(
         return quiescence(board, info, alpha, beta);
     }
 
+    let hash = board.game.processor.hash(board, &info.zobrist);
+    let index = (hash % info.tt_size) as usize;
+
+    let mut found_best_move: Option<Action> = None;
+    if let Some(entry) = &info.tt[index] {
+        if hash == entry.hash {
+            found_best_move = entry.best_move;
+        }
+    }
+
     let mut legal_actions = board.list_legal_actions();
     let opps = board.state.opposite_team();
 
@@ -140,7 +166,7 @@ pub fn search<T: BitInt>(
     }
 
     legal_actions.sort_by(|&a, &b| {
-        score(board, info, b, opps).cmp(&score(board, info, a, opps))
+        score(board, info, b, opps, found_best_move).cmp(&score(board, info, a, opps, found_best_move))
     });
 
     let mut best = i32::MIN;
@@ -175,6 +201,8 @@ pub fn search<T: BitInt>(
         info.best_move = best_move;
     }
 
+    info.tt[index] = Some(TtEntry { hash, best_move });
+
     best
 }
 
@@ -185,6 +213,9 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, max_time:
         root_depth: 0,
         best_move: None,
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
+        zobrist: board.game.processor.gen_zobrist(board),
+        tt_size: 1_000_000,
+        tt: vec![ None; 1_000_000 ],
         nodes: 0,
         score: 0
     };
