@@ -227,26 +227,33 @@ pub fn search<T: BitInt>(
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
-    let mut first_move = true; 
-    for ScoredAction(act, _) in scored_actions {
+    let pv_node = beta - alpha > 1;
+
+    for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
         let history = board.play(act);
 
         info.nodes += 1;
 
-        let score = if first_move {
-            -search(board, info, depth - 1, ply + 1, -beta, -alpha)
-        } else {
-            // Reduced Window
-            let score = -search(board, info, depth - 1, ply + 1, -alpha - 1, -alpha);
+        let lmr = index >= 3;
 
-            let pv_node = beta - alpha > 1;
-            if score > alpha && pv_node {
-                // Full Window Retry
-                -search(board, info, depth - 1, ply + 1, -beta, -alpha)
-            } else {
-                score
+        let new_depth = depth - 1;
+        let mut score: i32 = MIN; 
+        
+        if lmr {
+            let reduced = new_depth - 1;
+
+            score = -search(board, info, reduced, ply + 1, -alpha - 1, -alpha);
+            
+            if score > alpha && reduced < new_depth {
+                score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha);
             }
-        };
+        } else if !pv_node || index > 0 {
+            score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha)
+        }
+        
+        if pv_node && (index == 0 || score > alpha) {
+            score = -search(board, info, new_depth, ply + 1, -beta, -alpha)
+        }
 
         board.state.restore(history);
 
@@ -268,8 +275,6 @@ pub fn search<T: BitInt>(
 
             break;
         }
-
-        first_move = false;
     }
     
     if depth == info.root_depth {
