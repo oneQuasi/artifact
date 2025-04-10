@@ -245,7 +245,8 @@ pub fn search<T: BitInt>(
     board.state.restore(history);
 
     if depth >= 5 && zugzwang_unlikely(board) && !null_last_move && !in_check && !tt_matches {
-        let nm_depth = depth - 3;
+        let reduction = 3 + (depth / 5);
+        let nm_depth = depth - reduction;
 
         let history = board.play_null();
         let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1);
