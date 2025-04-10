@@ -170,10 +170,8 @@ pub fn search<T: BitInt>(
         return quiescence(board, info, alpha, beta);
     }
     
-    let pv_node = beta - alpha > 1;
-
     let eval = eval(board);
-    if !pv_node && beta - alpha == 1 && depth <= 3 && eval - (100 * depth) >= beta {
+    if depth <= 3 && eval - (100 * depth) >= beta {
         return eval;
     }
 
