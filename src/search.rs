@@ -177,7 +177,7 @@ pub fn search<T: BitInt>(
     mut alpha: i32, 
     beta: i32, 
 ) -> i32 {
-    if depth == 0 {
+    if depth <= 0 {
         return quiescence(board, info, alpha, beta);
     }
     
@@ -244,7 +244,7 @@ pub fn search<T: BitInt>(
     let in_check = board.list_captures(king).and(king).is_set();
     board.state.restore(history);
 
-    if depth >= 5 && zugzwang_unlikely(board) && !null_last_move && !in_check && !tt_matches {
+    if depth >= 3 && zugzwang_unlikely(board) && !null_last_move && !in_check && !tt_matches {
         let reduction = 3 + (depth / 5);
         let nm_depth = depth - reduction;
 
