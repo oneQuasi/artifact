@@ -1,7 +1,7 @@
 use std::{io, process, thread, time::Duration};
 
 use chessing::{chess::Chess, game::{GameTemplate, Team}, uci::{parse::{GoOption, UciCommand, UciPosition}, respond::Info, Uci}};
-use search::{iterative_deepening, search, SearchInfo};
+use search::{create_search_info, iterative_deepening, search, SearchInfo};
 
 mod search;
 mod util;
@@ -14,8 +14,7 @@ fn main() {
     let chess = Chess::create::<u64>();
     let mut board = chess.default();
 
-    let mut hashes: Vec<u64> = vec![];
-    let zobrist = board.game.processor.gen_zobrist(&mut board, 64);
+    let mut info = create_search_info(&mut board);
 
     for line in stdin.lines() {
         let line = line.expect("Line is set");
@@ -59,13 +58,14 @@ fn main() {
                     soft_time = 300;
                 }
 
-                let zobrist = board.game.processor.gen_zobrist(&mut board, 64);
-                let info = iterative_deepening(&uci, &mut board, soft_time, zobrist, hashes.clone());
+                iterative_deepening(&uci, &mut info, &mut board, soft_time);
 
                 let action = info.best_move.expect("There's a best move, right?");
                 let action_display = board.display_uci_action(action);
 
                 uci.bestmove(&action_display);
+
+                info.best_move = None;
             }
             UciCommand::IsReady() => {
                 uci.readyok();
@@ -80,11 +80,10 @@ fn main() {
                     }
                 }
 
-                hashes = vec![];
+                info.hashes = vec![];
 
                 for act in moves {
-                    hashes.push(chess.processor.hash(&mut board, &zobrist));
-
+                    info.hashes.push(chess.processor.hash(&mut board, &info.zobrist));
                     board.play_action(&act);
                 }
             }
@@ -96,6 +95,7 @@ fn main() {
             }
             UciCommand::UciNewGame() => {
                 // TODO
+                info = create_search_info(&mut board);
             }
             UciCommand::Unknown(cmd) => {
                 // TODO
