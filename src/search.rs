@@ -170,6 +170,11 @@ pub fn search<T: BitInt>(
         return quiescence(board, info, alpha, beta);
     }
 
+    let eval = eval(board);
+    if beta - alpha == 1 && depth <= 3 && eval - (100 * depth) >= beta {
+        return eval;
+    }
+
     let hash = board.game.processor.hash(board, &info.zobrist);
     let index = (hash % info.tt_size) as usize;
 
@@ -233,9 +238,8 @@ pub fn search<T: BitInt>(
         } else {
             // Reduced Window
             let score = -search(board, info, depth - 1, ply + 1, -alpha - 1, -alpha);
-            let non_pv = (beta - alpha) > 1;
 
-            if score > alpha && non_pv {
+            if score > alpha && beta - alpha > 1 {
                 // Full Window Retry
                 -search(board, info, depth - 1, ply + 1, -beta, -alpha)
             } else {
