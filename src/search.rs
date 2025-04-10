@@ -169,9 +169,11 @@ pub fn search<T: BitInt>(
     if depth == 0 {
         return quiescence(board, info, alpha, beta);
     }
+    
+    let pv_node = beta - alpha > 1;
 
     let eval = eval(board);
-    if beta - alpha == 1 && depth <= 3 && eval - (100 * depth) >= beta {
+    if !pv_node && beta - alpha == 1 && depth <= 3 && eval - (100 * depth) >= beta {
         return eval;
     }
 
@@ -239,7 +241,8 @@ pub fn search<T: BitInt>(
             // Reduced Window
             let score = -search(board, info, depth - 1, ply + 1, -alpha - 1, -alpha);
 
-            if score > alpha && beta - alpha > 1 {
+            let pv_node = beta - alpha > 1;
+            if score > alpha && pv_node {
                 // Full Window Retry
                 -search(board, info, depth - 1, ply + 1, -beta, -alpha)
             } else {
