@@ -169,6 +169,11 @@ pub fn search<T: BitInt>(
     if depth == 0 {
         return quiescence(board, info, alpha, beta);
     }
+    
+    let eval = eval(board);
+    if depth <= 3 && eval - (100 * depth) >= beta {
+        return eval;
+    }
 
     let hash = board.game.processor.hash(board, &info.zobrist);
     let index = (hash % info.tt_size) as usize;
@@ -233,9 +238,9 @@ pub fn search<T: BitInt>(
         } else {
             // Reduced Window
             let score = -search(board, info, depth - 1, ply + 1, -alpha - 1, -alpha);
-            let non_pv = (beta - alpha) > 1;
 
-            if score > alpha && non_pv {
+            let pv_node = beta - alpha > 1;
+            if score > alpha && pv_node {
                 // Full Window Retry
                 -search(board, info, depth - 1, ply + 1, -beta, -alpha)
             } else {
@@ -284,26 +289,28 @@ pub fn search<T: BitInt>(
     best
 }
 
-pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, soft_time: u64, zobrist: ZobristTable, hashes: Vec<u64>) -> SearchInfo {
+pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
     let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
 
-    let mut info = SearchInfo {
+    SearchInfo {
         root_depth: 0,
         best_move: None,
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
-        hashes,
-        zobrist,
+        hashes: vec![],
+        zobrist: board.game.processor.gen_zobrist(board, 64),
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
         nodes: 0,
         score: 0
-    };
+    }
+}
 
+pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &mut Board<T>, soft_time: u64) {
     let start = current_time_millis();
     
     for depth in 1..100 {
         info.root_depth = depth;
-        let score = search(board, &mut info, depth, 0, MIN, MAX);
+        let score = search(board, info, depth, 0, MIN, MAX);
         info.score = score;
 
         let current_time = current_time_millis();
@@ -325,6 +332,4 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, board: &mut Board<T>, soft_time
             break;   
         }
     }
-
-    info
 }
