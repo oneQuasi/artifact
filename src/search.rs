@@ -279,7 +279,12 @@ pub fn search<T: BitInt>(
         let mut score: i32 = MIN; 
         
         if lmr {
-            let reduced = new_depth - 1;
+            let r = if index >= 6 {
+                2
+            } else {
+                1
+            };
+            let reduced = new_depth - r;
 
             score = -search(board, info, reduced, ply + 1, -alpha - 1, -alpha, false);
             
