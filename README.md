@@ -13,6 +13,8 @@ List of current features:
     - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) cutoffs and ordering
     - [Principle Variation Search](https://www.chessprogramming.org/Principal_Variation_Search)
     - [Late Move Reductions](https://www.chessprogramming.org/Late_Move_Reductions)
+    - [Reverse Futility Pruning](https://www.chessprogramming.org/Reverse_Futility_Pruning)
+    - [Null Move Pruning](https://www.chessprogramming.org/Null_Move_Pruning)
     - Move Ordering:
         - [MVV-LVA](https://www.chessprogramming.org/MVV-LVA)
         - [History Heuristic](https://www.chessprogramming.org/History_Heuristic)

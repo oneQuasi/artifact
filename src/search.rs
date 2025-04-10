@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, i32};
 
-use chessing::{bitboard::{BitBoard, BitInt}, game::{action::Action, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
+use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{Action, ActionRecord}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
 
 use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
 
@@ -158,6 +158,17 @@ pub fn quiescence<T: BitInt>(
     best
 }
 
+fn zugzwang_unlikely<T: BitInt>(
+    board: &mut Board<T>
+) -> bool {
+    let king = board.state.pieces[5];
+    let pawns = board.state.pieces[0];
+    let team = board.state.team_to_move();
+
+    team != team.and(king.or(pawns))
+    
+}
+
 pub fn search<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
@@ -166,7 +177,7 @@ pub fn search<T: BitInt>(
     mut alpha: i32, 
     beta: i32, 
 ) -> i32 {
-    if depth == 0 {
+    if depth <= 0 {
         return quiescence(board, info, alpha, beta);
     }
     
@@ -180,7 +191,8 @@ pub fn search<T: BitInt>(
 
     let mut found_best_move: Option<Action> = None;
 
-    if let Some(entry) = &info.tt[index] {
+    let tt_hit = &info.tt[index];
+    if let Some(entry) = tt_hit {
         if hash == entry.hash {
             let is_in_bounds = match entry.bounds {
                 Bounds::Exact => true,
@@ -216,6 +228,32 @@ pub fn search<T: BitInt>(
 
     if info.hashes.contains(&hash) && ply > 0 {
         return 0;
+    }
+
+    let null_last_move = match board.state.history.last() {
+        Some(ActionRecord::Null()) => true,
+        _ => false};
+    
+    let king = board.state.pieces[5].and(board.state.team_to_move());
+    let history = board.play_null();
+    let in_check = board.list_captures(king).and(king).is_set();
+    board.state.restore(history);
+
+    if depth >= 3 && zugzwang_unlikely(board) && !null_last_move && !in_check {
+        let reduction = 3 + (depth / 5);
+        let nm_depth = depth - reduction;
+
+        let history = board.play_null();
+        let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1);
+        board.state.restore(history);
+
+        if null_score >= beta {
+            return if null_score > MAX / 2 {
+                beta
+            } else {
+                null_score
+            }
+        }
     }
     
     info.hashes.push(hash);
