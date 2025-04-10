@@ -158,7 +158,7 @@ pub fn quiescence<T: BitInt>(
     best
 }
 
-fn zugswang_unlikely<T: BitInt>(
+fn zugzwang_unlikely<T: BitInt>(
     board: &mut Board<T>
 ) -> bool {
     let king = board.state.pieces[5];
@@ -208,36 +208,6 @@ pub fn search<T: BitInt>(
         }
     }
 
-    let null_last_move = match board.state.history.last() {
-        Some(ActionRecord::Null()) => true,
-        _ => false};
-
-    let tt_matches = match tt_hit {
-        Some(TtEntry { score, bounds: Bounds::Upper, .. }) => *score < beta,
-        _ => false
-    };
-    
-    let king = board.state.pieces[5].and(board.state.team_to_move());
-    let history = board.play_null();
-    let in_check = board.list_captures(king).and(king).is_set();
-    board.state.restore(history);
-
-    if depth >= 5 && zugswang_unlikely(board) && !null_last_move && !in_check && !tt_matches {
-        let nm_depth = depth - 3;
-        let history = board.play_null();
-
-        let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1);
-        board.state.restore(history);
-
-        if null_score >= beta {
-            return if null_score > MAX / 2 {
-                beta
-            } else {
-                null_score
-            }
-        }
-    }
-
     let legal_actions = board.list_legal_actions();
     let opps = board.state.opposite_team();
 
@@ -258,6 +228,36 @@ pub fn search<T: BitInt>(
 
     if info.hashes.contains(&hash) && ply > 0 {
         return 0;
+    }
+
+    let null_last_move = match board.state.history.last() {
+        Some(ActionRecord::Null()) => true,
+        _ => false};
+
+    let tt_matches = match tt_hit {
+        Some(TtEntry { score, bounds: Bounds::Upper, .. }) => *score < beta,
+        _ => false
+    };
+    
+    let king = board.state.pieces[5].and(board.state.team_to_move());
+    let history = board.play_null();
+    let in_check = board.list_captures(king).and(king).is_set();
+    board.state.restore(history);
+
+    if depth >= 5 && zugzwang_unlikely(board) && !null_last_move && !in_check && !tt_matches {
+        let nm_depth = depth - 3;
+
+        let history = board.play_null();
+        let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1);
+        board.state.restore(history);
+
+        if null_score >= beta {
+            return if null_score > MAX / 2 {
+                beta
+            } else {
+                null_score
+            }
+        }
     }
     
     info.hashes.push(hash);
