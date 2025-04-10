@@ -233,18 +233,13 @@ pub fn search<T: BitInt>(
     let null_last_move = match board.state.history.last() {
         Some(ActionRecord::Null()) => true,
         _ => false};
-
-    let tt_matches = match tt_hit {
-        Some(TtEntry { score, bounds: Bounds::Upper, .. }) => *score < beta,
-        _ => false
-    };
     
     let king = board.state.pieces[5].and(board.state.team_to_move());
     let history = board.play_null();
     let in_check = board.list_captures(king).and(king).is_set();
     board.state.restore(history);
 
-    if depth >= 3 && zugzwang_unlikely(board) && !null_last_move && !in_check && !tt_matches {
+    if depth >= 3 && zugzwang_unlikely(board) && !null_last_move && !in_check {
         let reduction = 3 + (depth / 5);
         let nm_depth = depth - reduction;
 
