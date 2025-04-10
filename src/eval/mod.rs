@@ -1,4 +1,4 @@
-use chessing::{bitboard::BitInt, game::{Board, Team}};
+use chessing::{bitboard::{BitBoard, BitInt}, game::{Board, Team}};
 use psqt::{BISHOP_EG, BISHOP_EG_WHITE, BISHOP_MG, BISHOP_MG_WHITE, KING_EG, KING_EG_WHITE, KING_MG, KING_MG_WHITE, KNIGHT_EG, KNIGHT_EG_WHITE, KNIGHT_MG, KNIGHT_MG_WHITE, PAWN_EG, PAWN_EG_WHITE, PAWN_MG, PAWN_MG_WHITE, QUEEN_EG, QUEEN_EG_WHITE, QUEEN_MG, QUEEN_MG_WHITE, ROOK_EG, ROOK_EG_WHITE, ROOK_MG, ROOK_MG_WHITE};
 
 mod psqt;
@@ -63,113 +63,100 @@ pub fn eval<T: BitInt>(board: &mut Board<T>) -> i32 {
         (black_rooks.count() as i32 * ROOK) +
         (black_queens.count() as i32 * QUEEN);
 
-    score += white_material;
-    score -= black_material;
+    score += white_material - black_material;
 
     let total_material = white_material + black_material;
-    let relevant_material = total_material - (pawns.count() as i32 * PAWN);
 
-    if relevant_material > 3000 {
-        // Middlegame
-
-        for pawn in white_pawns.iter() {
-            score += PAWN_MG_WHITE[pawn as usize];
-        }
-    
-        for pawn in black_pawns.iter() {
-            score -= PAWN_MG[pawn as usize];
-        }
-    
-        for knight in white_knights.iter() {
-            score += KNIGHT_MG_WHITE[knight as usize];
-        }
-    
-        for knight in black_knights.iter() {
-            score -= KNIGHT_MG[knight as usize];
-        }
-    
-        for bishop in white_bishops.iter() {
-            score += BISHOP_MG_WHITE[bishop as usize];
-        }
-    
-        for bishop in black_bishops.iter() {
-            score -= BISHOP_MG[bishop as usize];
-        }
-    
-        for rook in white_rooks.iter() {
-            score += ROOK_MG_WHITE[rook as usize];
-        }
-    
-        for rook in black_rooks.iter() {
-            score -= ROOK_MG[rook as usize];
-        }
-    
-        for queen in white_queens.iter() {
-            score += QUEEN_MG_WHITE[queen as usize];
-        }
-    
-        for queen in black_queens.iter() {
-            score -= QUEEN_MG[queen as usize];
-        }
-    
-        for king in white_king.iter() {
-            score += KING_MG_WHITE[king as usize];
-        }
-    
-        for king in black_king.iter() {
-            score -= KING_MG[king as usize];
-        }
+    if total_material > 5000 {
+        score += compute_mg(
+            white_pawns, black_pawns,
+            white_knights, black_knights,
+            white_bishops, black_bishops,
+            white_rooks, black_rooks,
+            white_queens, black_queens,
+            white_king, black_king
+        );
+    } else if total_material < 2500 {
+        score += compute_eg(
+            white_pawns, black_pawns,
+            white_knights, black_knights,
+            white_bishops, black_bishops,
+            white_rooks, black_rooks,
+            white_queens, black_queens,
+            white_king, black_king
+        );
     } else {
-        for pawn in white_pawns.iter() {
-            score += PAWN_EG_WHITE[pawn as usize];
-        }
-    
-        for pawn in black_pawns.iter() {
-            score -= PAWN_EG[pawn as usize];
-        }
-    
-        for knight in white_knights.iter() {
-            score += KNIGHT_EG_WHITE[knight as usize];
-        }
-    
-        for knight in black_knights.iter() {
-            score -= KNIGHT_EG[knight as usize];
-        }
-    
-        for bishop in white_bishops.iter() {
-            score += BISHOP_EG_WHITE[bishop as usize];
-        }
-    
-        for bishop in black_bishops.iter() {
-            score -= BISHOP_EG[bishop as usize];
-        }
-    
-        for rook in white_rooks.iter() {
-            score += ROOK_EG_WHITE[rook as usize];
-        }
-    
-        for rook in black_rooks.iter() {
-            score -= ROOK_EG[rook as usize];
-        }
-    
-        for queen in white_queens.iter() {
-            score += QUEEN_EG_WHITE[queen as usize];
-        }
-    
-        for queen in black_queens.iter() {
-            score -= QUEEN_EG[queen as usize];
-        }
-    
-        for king in white_king.iter() {
-            score += KING_EG_WHITE[king as usize];
-        }
-    
-        for king in black_king.iter() {
-            score -= KING_EG[king as usize];
-        }
+        let mg = compute_mg(
+            white_pawns, black_pawns,
+            white_knights, black_knights,
+            white_bishops, black_bishops,
+            white_rooks, black_rooks,
+            white_queens, black_queens,
+            white_king, black_king
+        );
+        let eg = compute_eg(
+            white_pawns, black_pawns,
+            white_knights, black_knights,
+            white_bishops, black_bishops,
+            white_rooks, black_rooks,
+            white_queens, black_queens,
+            white_king, black_king
+        );
+        let weight = total_material - 2500;
+        score += (mg * weight + eg * (2500 - weight)) / 2500;
     }
 
-    score *= team_to_move(board);
+    score * team_to_move(board)
+}
 
-    score
+fn compute_mg<T: BitInt>(
+    wp: BitBoard<T>, bp: BitBoard<T>,
+    wn: BitBoard<T>, bn: BitBoard<T>,
+    wb: BitBoard<T>, bb: BitBoard<T>,
+    wr: BitBoard<T>, br: BitBoard<T>,
+    wq: BitBoard<T>, bq: BitBoard<T>,
+    wk: BitBoard<T>, bk: BitBoard<T>
+) -> i32 {
+    let mut mg = 0;
+
+    for sq in wp.iter() { mg += PAWN_MG_WHITE[sq as usize]; }
+    for sq in bp.iter() { mg -= PAWN_MG[sq as usize]; }
+    for sq in wn.iter() { mg += KNIGHT_MG_WHITE[sq as usize]; }
+    for sq in bn.iter() { mg -= KNIGHT_MG[sq as usize]; }
+    for sq in wb.iter() { mg += BISHOP_MG_WHITE[sq as usize]; }
+    for sq in bb.iter() { mg -= BISHOP_MG[sq as usize]; }
+    for sq in wr.iter() { mg += ROOK_MG_WHITE[sq as usize]; }
+    for sq in br.iter() { mg -= ROOK_MG[sq as usize]; }
+    for sq in wq.iter() { mg += QUEEN_MG_WHITE[sq as usize]; }
+    for sq in bq.iter() { mg -= QUEEN_MG[sq as usize]; }
+    for sq in wk.iter() { mg += KING_MG_WHITE[sq as usize]; }
+    for sq in bk.iter() { mg -= KING_MG[sq as usize]; }
+
+    mg
+}
+
+fn compute_eg<T: BitInt>(
+    wp: BitBoard<T>, bp: BitBoard<T>,
+    wn: BitBoard<T>, bn: BitBoard<T>,
+    wb: BitBoard<T>, bb: BitBoard<T>,
+    wr: BitBoard<T>, br: BitBoard<T>,
+    wq: BitBoard<T>, bq: BitBoard<T>,
+    wk: BitBoard<T>, bk: BitBoard<T>
+) -> i32 {
+    let mut eg = 0;
+
+    for sq in wp.iter() { eg += PAWN_EG_WHITE[sq as usize]; }
+    for sq in bp.iter() { eg -= PAWN_EG[sq as usize]; }
+    for sq in wn.iter() { eg += KNIGHT_EG_WHITE[sq as usize]; }
+    for sq in bn.iter() { eg -= KNIGHT_EG[sq as usize]; }
+    for sq in wb.iter() { eg += BISHOP_EG_WHITE[sq as usize]; }
+    for sq in bb.iter() { eg -= BISHOP_EG[sq as usize]; }
+    for sq in wr.iter() { eg += ROOK_EG_WHITE[sq as usize]; }
+    for sq in br.iter() { eg -= ROOK_EG[sq as usize]; }
+    for sq in wq.iter() { eg += QUEEN_EG_WHITE[sq as usize]; }
+    for sq in bq.iter() { eg -= QUEEN_EG[sq as usize]; }
+    for sq in wk.iter() { eg += KING_EG_WHITE[sq as usize]; }
+    for sq in bk.iter() { eg -= KING_EG[sq as usize]; }
+
+    eg
 }
