@@ -12,6 +12,7 @@ List of current features:
     - [Iterative Deepening](https://www.chessprogramming.org/Iterative_Deepening)
     - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) cutoffs and ordering
     - [Principle Variation Search](https://www.chessprogramming.org/Principal_Variation_Search)
+    - [Late Move Reductions](https://www.chessprogramming.org/Late_Move_Reductions)
     - Move Ordering:
         - [MVV-LVA](https://www.chessprogramming.org/MVV-LVA)
         - [History Heuristic](https://www.chessprogramming.org/History_Heuristic)
@@ -20,3 +21,4 @@ List of current features:
     - [Checkmate](https://www.chessprogramming.org/Checkmate), prioritizes faster checkmates
     - [Material](https://www.chessprogramming.org/Material)
     - [Piece-Square Tables](https://www.chessprogramming.org/Piece-Square_Tables)
+    - [Tapered Eval](https://www.chessprogramming.org/Tapered_Eval)
