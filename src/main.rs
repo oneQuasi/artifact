@@ -31,24 +31,24 @@ fn main() {
                     match option {
                         GoOption::BTime(time) => {
                             if team == Team::Black {
-                                soft_time += time / 300;
+                                soft_time += time / 240;
                             }
                         }
                         GoOption::BInc(inc) => {
-                            soft_time += inc / 30;
+                            soft_time += inc / 24;
                         }
                         GoOption::WTime(time) => {
                             if team == Team::White {
-                                soft_time += time / 300;
+                                soft_time += time / 240;
                             }
                         }
                         GoOption::WInc(inc) => {
                             if team == Team::White {
-                                soft_time += inc / 30;
+                                soft_time += inc / 24;
                             }
                         }
                         GoOption::MoveTime(time) => {
-                            soft_time += time / 10;
+                            soft_time += time / 8;
                         }
                         _ => {}
                     }
