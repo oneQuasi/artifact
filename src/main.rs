@@ -25,30 +25,34 @@ fn main() {
             }
             UciCommand::Go { options } => {
                 let mut soft_time = 0;
+                let mut hard_time = 0;
                 let team = board.state.moving_team;
                 
                 for option in options {
                     match option {
                         GoOption::BTime(time) => {
                             if team == Team::Black {
-                                soft_time += time / 240;
+                                soft_time += time / 60;
+                                hard_time += time / 15;
                             }
                         }
                         GoOption::BInc(inc) => {
-                            soft_time += inc / 24;
+                            soft_time += inc / 6;
                         }
                         GoOption::WTime(time) => {
                             if team == Team::White {
-                                soft_time += time / 240;
+                                soft_time += time / 60;
+                                hard_time += time / 15;
                             }
                         }
                         GoOption::WInc(inc) => {
                             if team == Team::White {
-                                soft_time += inc / 24;
+                                soft_time += inc / 6;
                             }
                         }
                         GoOption::MoveTime(time) => {
-                            soft_time += time / 8;
+                            soft_time += time / 2;
+                            hard_time += time;
                         }
                         _ => {}
                     }
@@ -58,7 +62,7 @@ fn main() {
                     soft_time = 300;
                 }
 
-                iterative_deepening(&uci, &mut info, &mut board, soft_time);
+                iterative_deepening(&uci, &mut info, &mut board, soft_time, hard_time);
 
                 let action = info.best_move.expect("There's a best move, right?");
                 let action_display = board.display_uci_action(action);
