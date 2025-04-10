@@ -176,6 +176,7 @@ pub fn search<T: BitInt>(
     ply: i32,
     mut alpha: i32, 
     beta: i32, 
+    is_pv: bool
 ) -> i32 {
     if depth <= 0 {
         return quiescence(board, info, alpha, beta);
@@ -244,7 +245,7 @@ pub fn search<T: BitInt>(
         let nm_depth = depth - reduction;
 
         let history = board.play_null();
-        let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1);
+        let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1, is_pv);
         board.state.restore(history);
 
         if null_score >= beta {
@@ -265,7 +266,7 @@ pub fn search<T: BitInt>(
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
-    let pv_node = beta - alpha > 1;
+    let pv_node = is_pv;
 
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
         let history = board.play(act);
@@ -280,17 +281,17 @@ pub fn search<T: BitInt>(
         if lmr {
             let reduced = new_depth - 1;
 
-            score = -search(board, info, reduced, ply + 1, -alpha - 1, -alpha);
+            score = -search(board, info, reduced, ply + 1, -alpha - 1, -alpha, false);
             
             if score > alpha && reduced < new_depth {
-                score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha);
+                score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha, false);
             }
         } else if !pv_node || index > 0 {
-            score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha)
+            score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha, false);
         }
         
         if pv_node && (index == 0 || score > alpha) {
-            score = -search(board, info, new_depth, ply + 1, -beta, -alpha)
+            score = -search(board, info, new_depth, ply + 1, -beta, -alpha, is_pv);
         }
 
         board.state.restore(history);
@@ -353,7 +354,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
     
     for depth in 1..100 {
         info.root_depth = depth;
-        let score = search(board, info, depth, 0, MIN, MAX);
+        let score = search(board, info, depth, 0, MIN, MAX, true);
         info.score = score;
 
         let current_time = current_time_millis();
