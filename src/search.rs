@@ -222,12 +222,27 @@ pub fn search<T: BitInt>(
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
+    let mut first_move = true; 
     for ScoredAction(act, _) in scored_actions {
         let history = board.play(act);
 
         info.nodes += 1;
 
-        let score = -search(board, info, depth - 1, ply + 1, -beta, -alpha);
+        let score = if first_move {
+            -search(board, info, depth - 1, ply + 1, -beta, -alpha)
+        } else {
+            // Reduced Window
+            let score = -search(board, info, depth - 1, ply + 1, -alpha - 1, -alpha);
+            let non_pv = (beta - alpha) > 1;
+
+            if score > alpha && non_pv {
+                // Full Window Retry
+                -search(board, info, depth - 1, ply + 1, -beta, -alpha)
+            } else {
+                score
+            }
+        };
+
         board.state.restore(history);
 
         if score > best {
@@ -248,6 +263,8 @@ pub fn search<T: BitInt>(
 
             break;
         }
+
+        first_move = false;
     }
     
     if depth == info.root_depth {
