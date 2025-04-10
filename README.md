@@ -11,6 +11,7 @@ List of current features:
     - [Quiescence Search](https://www.chessprogramming.org/Quiescence_Search) (capture only)
     - [Iterative Deepening](https://www.chessprogramming.org/Iterative_Deepening)
     - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) cutoffs and ordering
+    - [Principle Variation Search](https://www.chessprogramming.org/Principal_Variation_Search)
     - Move Ordering:
         - [MVV-LVA](https://www.chessprogramming.org/MVV-LVA)
         - [History Heuristic](https://www.chessprogramming.org/History_Heuristic)
