@@ -197,7 +197,7 @@ pub fn search<T: BitInt>(
             let is_in_bounds = match entry.bounds {
                 Bounds::Exact => true,
                 Bounds::Lower => entry.score >= beta,
-                Bounds::Upper => entry.score < alpha
+                Bounds::Upper => entry.score <= alpha
             };
 
             if entry.depth >= depth && is_in_bounds {
