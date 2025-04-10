@@ -32,7 +32,9 @@ pub struct SearchInfo {
     pub tt: Vec<Option<TtEntry>>,
     pub tt_size: u64,
     pub nodes: u64,
-    pub score: i32
+    pub score: i32,
+    pub abort: bool,
+    pub time_to_abort: u128
 }
 
 pub const MAX: i32 = 1_000_000;
@@ -178,6 +180,12 @@ pub fn search<T: BitInt>(
     beta: i32, 
     is_pv: bool
 ) -> i32 {
+    if depth >= 4 && !info.abort {
+        info.abort = current_time_millis() >= info.time_to_abort;
+    }
+
+    if info.abort { return 0; }
+
     if depth <= 0 {
         return quiescence(board, info, alpha, beta);
     }
@@ -202,6 +210,10 @@ pub fn search<T: BitInt>(
             };
 
             if entry.depth >= depth && is_in_bounds {
+                if depth == info.root_depth {
+                    info.best_move = entry.best_move;
+                }
+
                 return entry.score;
             }
 
@@ -321,6 +333,8 @@ pub fn search<T: BitInt>(
         }
     }
     
+    if info.abort { return 0; }
+
     if depth == info.root_depth {
         info.best_move = best_move;
     }
@@ -350,16 +364,26 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
         nodes: 0,
-        score: 0
+        score: 0,
+        abort: false,
+        time_to_abort: u128::MAX
     }
 }
 
-pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &mut Board<T>, soft_time: u64) {
+pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &mut Board<T>, soft_time: u64, hard_time: u64) {
     let start = current_time_millis();
-    
+    info.time_to_abort = start + hard_time as u128;
+    info.abort = false;
+    info.nodes = 0;
+
     for depth in 1..100 {
         info.root_depth = depth;
+
         let score = search(board, info, depth, 0, MIN, MAX, true);
+        if info.abort {
+            break;
+        }
+
         info.score = score;
 
         let current_time = current_time_millis();
