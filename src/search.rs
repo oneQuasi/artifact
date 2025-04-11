@@ -193,20 +193,23 @@ pub fn search<T: BitInt>(
     let mut found_best_move: Option<Action> = None;
 
     let tt_hit = &info.tt[index];
-    if let Some(entry) = tt_hit {
-        if hash == entry.hash {
-            let is_in_bounds = match entry.bounds {
-                Bounds::Exact => true,
-                Bounds::Lower => entry.score >= beta,
-                Bounds::Upper => entry.score < alpha
-            };
+    match tt_hit {
+        Some(entry) => {
+            if hash == entry.hash {
+                let is_in_bounds = match entry.bounds {
+                    Bounds::Exact => true,
+                    Bounds::Lower => entry.score >= beta,
+                    Bounds::Upper => entry.score < alpha
+                };
 
-            if entry.depth >= depth && is_in_bounds {
-                return entry.score;
+                if entry.depth >= depth && is_in_bounds {
+                    return entry.score;
+                }
+
+                found_best_move = entry.best_move;
             }
-
-            found_best_move = entry.best_move;
         }
+        None => {}
     }
 
     let legal_actions = board.list_legal_actions();
@@ -266,7 +269,7 @@ pub fn search<T: BitInt>(
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
-    let pv_node = beta - alpha > 1;
+    let pv_node = is_pv;
 
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
         let history = board.play(act);
