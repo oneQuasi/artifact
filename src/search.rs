@@ -189,10 +189,12 @@ pub fn search<T: BitInt>(
     if depth <= 0 {
         return quiescence(board, info, alpha, beta);
     }
-    
-    let eval = eval(board);
-    if depth <= 3 && eval - (100 * depth) >= beta {
-        return eval;
+
+    if depth <= 3 {
+        let eval = eval(board);
+        if eval - (100 * depth) >= beta {
+            return eval;
+        }
     }
 
     let hash = board.game.processor.hash(board, &info.zobrist);
@@ -201,24 +203,27 @@ pub fn search<T: BitInt>(
     let mut found_best_move: Option<Action> = None;
 
     let tt_hit = &info.tt[index];
-    if let Some(entry) = tt_hit {
-        if hash == entry.hash {
-            let is_in_bounds = match entry.bounds {
-                Bounds::Exact => true,
-                Bounds::Lower => entry.score >= beta,
-                Bounds::Upper => entry.score < alpha
-            };
-
-            if entry.depth >= depth && is_in_bounds {
-                if depth == info.root_depth {
-                    info.best_move = entry.best_move;
+    match tt_hit {
+        Some(entry) => {
+            if hash == entry.hash {
+                let is_in_bounds = match entry.bounds {
+                    Bounds::Exact => true,
+                    Bounds::Lower => entry.score >= beta,
+                    Bounds::Upper => entry.score < alpha
+                };
+    
+                if entry.depth >= depth && is_in_bounds {
+                    if depth == info.root_depth {
+                        info.best_move = entry.best_move;
+                    }
+    
+                    return entry.score;
                 }
-
-                return entry.score;
+    
+                found_best_move = entry.best_move;
             }
-
-            found_best_move = entry.best_move;
         }
+        None => {}
     }
 
     let legal_actions = board.list_legal_actions();
