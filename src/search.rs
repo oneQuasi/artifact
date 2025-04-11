@@ -1,6 +1,6 @@
-use std::{cmp::Ordering, i32};
+use std::{cmp::Ordering, i32, vec};
 
-use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{Action, ActionRecord}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
+use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{restore_perfectly, Action, ActionRecord, HistoryState}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
 
 use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
 
@@ -31,6 +31,7 @@ pub struct SearchInfo {
     pub hashes: Vec<u64>,
     pub tt: Vec<Option<TtEntry>>,
     pub tt_size: u64,
+    pub pv_table: Vec<Vec<ActionRecord>>,
     pub nodes: u64,
     pub score: i32,
     pub abort: bool,
@@ -169,6 +170,14 @@ fn zugzwang_unlikely<T: BitInt>(
 
     team != team.and(king.or(pawns))
     
+}
+
+pub fn set_or_push<T>(vec: &mut Vec<T>, index: usize, item: T) {
+    if vec.len() > index {
+        vec[index] = item;
+    } else if vec.len() == index {
+        vec.push(item);
+    }
 }
 
 pub fn search<T: BitInt>(
@@ -327,6 +336,29 @@ pub fn search<T: BitInt>(
             if score > alpha {
                 bounds = Bounds::Exact; // PV-node: move exceeded alpha but not beta
                 alpha = score;
+
+                if is_pv {
+                    let ply = ply as usize;
+
+                    match info.pv_table.get((ply + 1) as usize) {
+                        Some(pv_moves) => {
+                            for (i, pv) in pv_moves.clone().iter().enumerate() {
+                                match pv {
+                                    ActionRecord::Null() => {
+                                        set_or_push(&mut info.pv_table[ply], i + 1, ActionRecord::Null());
+                                        break;
+                                    }
+                                    &ActionRecord::Action(act) => {
+                                        set_or_push(&mut info.pv_table[ply], i + 1, ActionRecord::Action(act));
+                                    }
+                                }
+                            }
+                        }
+                        None => {}
+                    }
+
+                    set_or_push(&mut info.pv_table[ply], 0, ActionRecord::Action(act));
+                }
             }
         }
 
@@ -376,6 +408,7 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
         zobrist: board.game.processor.gen_zobrist(board, 64),
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
+        pv_table: vec![],
         nodes: 0,
         score: 0,
         abort: false,
@@ -390,6 +423,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
     info.nodes = 0;
 
     for depth in 1..100 {
+        info.pv_table = vec![ vec![]; 100 ];
         info.root_depth = depth;
 
         let score = search(board, info, depth, 0, MIN, MAX, true);
@@ -401,6 +435,27 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
 
         let current_time = current_time_millis();
 
+        let history = restore_perfectly(board);
+        let past_moves = board.state.history.clone();
+        let team = board.state.moving_team.clone();
+        let mut pv_acts: Vec<String> = vec![];
+
+        for act in info.pv_table[0].clone() {
+            if let ActionRecord::Action(act) = act {
+                if board.state.mailbox[act.from as usize] == 0 {
+                    // Invalid PV end early
+                    break;
+                }
+
+                pv_acts.push(board.display_uci_action(act));
+                board.play(act);
+            }
+        }
+
+        board.state.restore(history);
+        board.state.history = past_moves;
+        board.state.moving_team = team;
+
         let mut time = (current_time - start) as u64;
         if time == 0 { time = 1; }
 
@@ -410,7 +465,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
             time: Some(time),
             nodes: Some(info.nodes),
             nps: Some(info.nodes / time * 1000),
-            pv: info.best_move.map(|action| vec![ board.display_uci_action(action) ]),
+            pv: Some(pv_acts),
             ..Default::default()
         });
 
