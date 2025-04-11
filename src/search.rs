@@ -27,6 +27,7 @@ pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
     pub history: Vec<Vec<Vec<i32>>>,
+    pub conthist: Vec<Vec<Vec<Vec<Vec<Vec<i32>>>>>>,
     pub zobrist: ZobristTable,
     pub hashes: Vec<u64>,
     pub tt: Vec<Option<TtEntry>>,
@@ -58,7 +59,8 @@ fn score<T: BitInt>(
     info: &mut SearchInfo,
     act: Action, 
     opps: BitBoard<T>,
-    found_best_move: Option<Action>
+    found_best_move: Option<Action>,
+    previous: Option<ActionRecord>
 ) -> i32 {
     if let Some(found_best_move) = found_best_move {
         if found_best_move == act {
@@ -70,7 +72,16 @@ fn score<T: BitInt>(
         return HIGH_PRIORITY + mvv_lva(board, act);
     }
 
-    info.history[board.state.moving_team.index()][act.from as usize][act.to as usize]
+    let mut score = 0;
+    let prio_team = board.state.moving_team.next().index();
+    let team = board.state.moving_team.index();
+
+    score += info.history[team][act.from as usize][act.to as usize];
+    if let Some(ActionRecord::Action(previous)) = previous {
+        score += info.conthist[prio_team][previous.piece as usize][previous.to as usize][team][act.piece as usize][act.to as usize];
+    }
+
+    score
 }
 
 fn sort_actions<T: BitInt>(
@@ -78,11 +89,12 @@ fn sort_actions<T: BitInt>(
     info: &mut SearchInfo,
     opps: BitBoard<T>,
     actions: Vec<Action>,
-    found_best_move: Option<Action>
+    found_best_move: Option<Action>,
+    previous: Option<ActionRecord>
 ) -> Vec<ScoredAction> {
     let mut scored = vec![];
     for act in actions {
-        scored.push(ScoredAction(act, score(board, info, act, opps, found_best_move)))
+        scored.push(ScoredAction(act, score(board, info, act, opps, found_best_move, previous)))
     }
 
     scored.sort_by(|a, b| b.1.cmp(&a.1));
@@ -262,7 +274,8 @@ pub fn search<T: BitInt>(
     
     info.hashes.push(hash);
 
-    let scored_actions = sort_actions(board, info, opps, legal_actions, found_best_move);
+    let previous = board.state.history.last().cloned();
+    let scored_actions = sort_actions(board, info, opps, legal_actions, found_best_move, previous);
 
     let mut best = i32::MIN;
     let mut best_move: Option<Action> = None;
@@ -270,6 +283,9 @@ pub fn search<T: BitInt>(
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
     let pv_node = is_pv;
+
+    let team = board.state.moving_team.index();
+    let prio_team = board.state.moving_team.next().index();
 
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
         let history = board.play(act);
@@ -317,7 +333,10 @@ pub fn search<T: BitInt>(
             bounds = Bounds::Lower; // CUT-node: beta-cutoff was performed
 
             if !is_capture(board, act, opps) {
-                info.history[board.state.moving_team.index()][act.from as usize][act.to as usize] += depth * depth;
+                info.history[team][act.from as usize][act.to as usize] += depth * depth;
+                if let Some(ActionRecord::Action(previous)) = previous {
+                    info.conthist[prio_team][previous.piece as usize][previous.to as usize][team][act.piece as usize][act.to as usize] += depth * depth;
+                }
             }
 
             break;
@@ -343,11 +362,15 @@ pub fn search<T: BitInt>(
 
 pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
     let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
+    let pieces = board.game.pieces.len();
 
     SearchInfo {
         root_depth: 0,
         best_move: None,
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
+        conthist: vec![ vec![ vec![ 
+            vec![ vec![ vec![ 0; squares ]; pieces ]; 2
+        ]; squares ]; pieces ]; 2 ],
         hashes: vec![],
         zobrist: board.game.processor.gen_zobrist(board, 64),
         tt_size: 1_000_000,
