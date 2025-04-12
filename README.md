@@ -26,3 +26,4 @@ List of current features:
     - [Material](https://www.chessprogramming.org/Material)
     - [Piece-Square Tables](https://www.chessprogramming.org/Piece-Square_Tables)
     - [Tapered Eval](https://www.chessprogramming.org/Tapered_Eval)
+    - [Mobility](https://www.chessprogramming.org/Mobility)

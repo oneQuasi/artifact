@@ -30,6 +30,7 @@ pub struct SearchInfo {
     pub killers: Vec<Vec<Option<Action>>>,
     pub zobrist: ZobristTable,
     pub hashes: Vec<u64>,
+    pub mobility: Vec<Option<(usize, Team)>>,
     pub tt: Vec<Option<TtEntry>>,
     pub tt_size: u64,
     pub nodes: u64,
@@ -117,10 +118,11 @@ fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>
 pub fn quiescence<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
+    ply: usize,
     mut alpha: i32, 
     beta: i32, 
 ) -> i32 {
-    let stand_pat = eval(board);
+    let stand_pat = eval(board, info, ply);
     let mut best = stand_pat;
 
     if stand_pat >= beta {
@@ -132,6 +134,8 @@ pub fn quiescence<T: BitInt>(
     }
 
     let actions = board.list_actions();
+    info.mobility[ply] = Some((actions.len(), board.state.moving_team));
+
     let opps = board.state.opposite_team();
     let mut captures = Vec::with_capacity(actions.len());
 
@@ -155,7 +159,7 @@ pub fn quiescence<T: BitInt>(
 
         info.nodes += 1;
 
-        let score = -quiescence(board, info, -beta, -alpha);
+        let score = -quiescence(board, info, ply, -beta, -alpha);
         board.state.restore(history);
 
         if score > best {
@@ -208,11 +212,11 @@ pub fn search<T: BitInt>(
     if info.abort { return 0; }
 
     if depth <= 0 {
-        return quiescence(board, info, alpha, beta);
+        return quiescence(board, info, ply, alpha, beta);
     }
 
     if depth <= 3 {
-        let eval = eval(board);
+        let eval = eval(board, info, ply);
         if eval - (100 * depth) >= beta {
             return eval;
         }
@@ -253,6 +257,7 @@ pub fn search<T: BitInt>(
     }
 
     let legal_actions = board.list_legal_actions();
+
     let opps = board.state.opposite_team();
 
     match board.game_state(&legal_actions) {
@@ -309,6 +314,7 @@ pub fn search<T: BitInt>(
 
     let mut quiets: Vec<Action> = vec![];
 
+    info.mobility[ply] = Some((scored_actions.len(), board.state.moving_team));
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
         let is_tactical = is_capture(board, act, opps);
         let history = board.play(act);
@@ -406,6 +412,7 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         hashes: vec![],
         killers: vec![],
+        mobility: vec![ None; 100 ],
         zobrist: board.game.processor.gen_zobrist(board, 64),
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
