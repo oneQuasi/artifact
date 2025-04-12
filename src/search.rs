@@ -27,6 +27,7 @@ pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
     pub history: Vec<Vec<Vec<i32>>>,
+    pub killers: Vec<Vec<Option<Action>>>,
     pub zobrist: ZobristTable,
     pub hashes: Vec<u64>,
     pub tt: Vec<Option<TtEntry>>,
@@ -55,10 +56,12 @@ fn mvv_lva<T: BitInt>(
 }   
 
 pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
+pub const MAX_KILLERS: usize = 2;
 
 fn score<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
+    ply: usize,
     act: Action, 
     opps: BitBoard<T>,
     found_best_move: Option<Action>
@@ -73,19 +76,29 @@ fn score<T: BitInt>(
         return HIGH_PRIORITY + mvv_lva(board, act);
     }
 
-    info.history[board.state.moving_team.index()][act.from as usize][act.to as usize]
+    let mut score = info.history[board.state.moving_team.index()][act.from as usize][act.to as usize];
+
+    for i in 0..MAX_KILLERS {
+        let killer = info.killers[i][ply];
+        if killer == Some(act) {
+            score += 100 - (50 * (i as i32));
+        }
+    }
+
+    score
 }
 
 fn sort_actions<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
+    ply: usize,
     opps: BitBoard<T>,
     actions: Vec<Action>,
     found_best_move: Option<Action>
 ) -> Vec<ScoredAction> {
     let mut scored = vec![];
     for act in actions {
-        scored.push(ScoredAction(act, score(board, info, act, opps, found_best_move)))
+        scored.push(ScoredAction(act, score(board, info, ply, act, opps, found_best_move)))
     }
 
     scored.sort_by(|a, b| b.1.cmp(&a.1));
@@ -184,7 +197,7 @@ pub fn search<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
     depth: i32,
-    ply: i32,
+    ply: usize,
     mut alpha: i32, 
     beta: i32, 
     is_pv: bool
@@ -245,10 +258,10 @@ pub fn search<T: BitInt>(
 
     match board.game_state(&legal_actions) {
         GameState::Win(Team::White) => {
-            return MIN + ply;
+            return MIN + ply as i32;
         }
         GameState::Win(Team::Black) => {
-            return MIN + ply;
+            return MIN + ply as i32;
         }
         GameState::Draw => {
             return 0;
@@ -286,7 +299,7 @@ pub fn search<T: BitInt>(
     
     info.hashes.push(hash);
 
-    let scored_actions = sort_actions(board, info, opps, legal_actions, found_best_move);
+    let scored_actions = sort_actions(board, info, ply, opps, legal_actions, found_best_move);
 
     let mut best = i32::MIN;
     let mut best_move: Option<Action> = None;
@@ -371,6 +384,15 @@ pub fn search<T: BitInt>(
                 for quiet in quiets {
                     info.history[board.state.moving_team.index()][quiet.from as usize][quiet.to as usize] -= depth * depth;
                 }
+
+                let first_killer = info.killers[0][ply];
+                if first_killer != Some(act) {
+                    for i in (1..MAX_KILLERS).rev() {
+                        let previous = info.killers[i - 1][ply];
+                        info.killers[i][ply] = previous;
+                    }
+                    info.killers[0][ply] = Some(act);
+                }
             }
 
             break;
@@ -406,6 +428,7 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
         best_move: None,
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         hashes: vec![],
+        killers: vec![],
         zobrist: board.game.processor.gen_zobrist(board, 64),
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
@@ -422,6 +445,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
     info.time_to_abort = start + hard_time as u128;
     info.abort = false;
     info.nodes = 0;
+    info.killers = vec![ vec![ None; 100 ]; MAX_KILLERS ];
 
     for depth in 1..100 {
         info.pv_table = vec![ vec![]; 100 ];
