@@ -207,6 +207,11 @@ pub fn search<T: BitInt>(
     }
 
     let hash = board.game.processor.hash(board, &info.zobrist);
+
+    if info.hashes.contains(&hash) && ply > 0 {
+        return 0;
+    }
+
     let index = (hash % info.tt_size) as usize;
 
     let mut found_best_move: Option<Action> = None;
@@ -251,10 +256,6 @@ pub fn search<T: BitInt>(
         GameState::Ongoing => {
             // continue evaluation
         }
-    }
-
-    if info.hashes.contains(&hash) && ply > 0 {
-        return 0;
     }
 
     let null_last_move = match board.state.history.last() {
@@ -465,7 +466,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
             time: Some(time),
             nodes: Some(info.nodes),
             nps: Some(info.nodes / time * 1000),
-            pv: Some(pv_acts),
+            pv: info.best_move.map(|el| vec![ board.display_uci_action(el) ]),
             ..Default::default()
         });
 
