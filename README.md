@@ -17,8 +17,9 @@ List of current features:
     - [Null Move Pruning](https://www.chessprogramming.org/Null_Move_Pruning)
     - Move Ordering:
         - [MVV-LVA](https://www.chessprogramming.org/MVV-LVA)
-        - [History Heuristic](https://www.chessprogramming.org/History_Heuristic) bonuses and penaltiesw
+        - [History Heuristic](https://www.chessprogramming.org/History_Heuristic) bonuses and penalties
         - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) ordering
+        - [Killer Moves Heuristic](https://www.chessprogramming.org/Killer_Move)
 - Evaluation:
     - [Stalemate](https://www.chessprogramming.org/Stalemate)
     - [Checkmate](https://www.chessprogramming.org/Checkmate), prioritizes faster checkmates
