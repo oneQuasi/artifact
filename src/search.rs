@@ -2,7 +2,7 @@ use std::{cmp::Ordering, i32, vec};
 
 use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{restore_perfectly, Action, ActionRecord, HistoryState}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
 
-use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
+use crate::{eval::{eval, MATERIAL, ROOK}, util::current_time_millis};
 
 
 #[derive(Clone, Debug, Copy)]
@@ -188,14 +188,6 @@ fn zugzwang_unlikely<T: BitInt>(
     
 }
 
-pub fn set_or_push<T>(vec: &mut Vec<T>, index: usize, item: T) {
-    if vec.len() > index {
-        vec[index] = item;
-    } else if vec.len() == index {
-        vec.push(item);
-    }
-}
-
 pub fn search<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
@@ -256,7 +248,18 @@ pub fn search<T: BitInt>(
         None => {}
     }
 
-    let legal_actions = board.list_legal_actions();
+    let actions = board.list_actions();
+
+    let mut legal_actions = vec![];
+
+    for action in actions {
+        let history = board.play(action);
+        let is_legal = board.game.processor.is_legal(board);
+        board.state.restore(history);
+        if is_legal {
+            legal_actions.push(action);
+        }
+    }
 
     let opps = board.state.opposite_team();
 
@@ -305,7 +308,7 @@ pub fn search<T: BitInt>(
 
     let scored_actions = sort_actions(board, info, ply, opps, legal_actions, found_best_move);
 
-    let mut best = i32::MIN;
+    let mut best = i32::MIN + 1;
     let mut best_move: Option<Action> = None;
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
@@ -423,6 +426,36 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
     }
 }
 
+pub fn aspiration<T: BitInt>(info: &mut SearchInfo, board: &mut Board<T>, depth: i32) -> i32 {
+    let max_window_size = ROOK;
+    let mut delta = 30;
+    let (mut alpha, mut beta) = if depth >= 5 {
+        (info.score - delta, info.score + delta)
+    } else {
+        (MIN, MAX)
+    };
+
+    loop {
+        let score = search(board, info, depth, 0, alpha, beta, true);
+        if info.abort {
+            return 0;
+        }
+
+        if score <= alpha {
+            alpha = (score - delta).max(MIN);
+        } else if score >= beta {
+            beta = (score + delta).min(MAX);
+        } else {
+            return score;
+        }
+
+        delta *= 2;
+        if delta >= max_window_size {
+            delta = MAX;
+        }
+    }
+}
+
 pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &mut Board<T>, soft_time: u64, hard_time: u64) {
     let start = current_time_millis();
     info.time_to_abort = start + hard_time as u128;
@@ -433,7 +466,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
     for depth in 1..100 {
         info.root_depth = depth;
 
-        let score = search(board, info, depth, 0, MIN, MAX, true);
+        let score = aspiration(info, board, depth);
         if info.abort {
             break;
         }
@@ -445,7 +478,6 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
         let history = restore_perfectly(board);
         let past_moves = board.state.history.clone();
         let team = board.state.moving_team.clone();
-        let mut pv_acts: Vec<String> = vec![];
 
         board.state.restore(history);
         board.state.history = past_moves;

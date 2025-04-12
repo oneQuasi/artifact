@@ -15,6 +15,7 @@ List of current features:
     - [Late Move Reductions](https://www.chessprogramming.org/Late_Move_Reductions)
     - [Reverse Futility Pruning](https://www.chessprogramming.org/Reverse_Futility_Pruning)
     - [Null Move Pruning](https://www.chessprogramming.org/Null_Move_Pruning)
+    - [Aspiration Windows](https://www.chessprogramming.org/Aspiration_Windows)
     - Move Ordering:
         - [MVV-LVA](https://www.chessprogramming.org/MVV-LVA)
         - [History Heuristic](https://www.chessprogramming.org/History_Heuristic) bonuses and penalties
