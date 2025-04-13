@@ -282,25 +282,29 @@ pub fn search<T: BitInt>(
         Some(ActionRecord::Null()) => true,
         _ => false};
     
-    let king = board.state.pieces[5].and(board.state.team_to_move());
     let history = board.play_null();
-    let in_check = board.list_captures(king).and(king).is_set();
     board.state.restore(history);
 
-    if depth >= 3 && zugzwang_unlikely(board) && !null_last_move && !in_check {
+    if depth >= 3 && zugzwang_unlikely(board) && !null_last_move {
         let reduction = 3 + (depth / 5);
         let nm_depth = depth - reduction;
 
         let history = board.play_null();
-        let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1, is_pv);
-        board.state.restore(history);
+        let is_legal = board.game.processor.is_legal(board);
 
-        if null_score >= beta {
-            return if null_score > MAX / 2 {
-                beta
-            } else {
-                null_score
+        if is_legal {
+            let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1, is_pv);
+            board.state.restore(history);
+    
+            if null_score >= beta {
+                return if null_score > MAX / 2 {
+                    beta
+                } else {
+                    null_score
+                }
             }
+        } else {
+            board.state.restore(history);
         }
     }
     
