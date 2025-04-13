@@ -8,7 +8,7 @@ mod util;
 mod eval;
 
 fn main() {
-    let uci = Uci;
+    let uci = Uci { log: true };
     let stdin = io::stdin();
 
     let chess = Chess::create::<u64>();

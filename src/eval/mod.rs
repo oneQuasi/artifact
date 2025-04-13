@@ -1,6 +1,8 @@
 use chessing::{bitboard::{BitBoard, BitInt}, game::{Board, Team}};
 use psqt::{BISHOP_EG, BISHOP_EG_WHITE, BISHOP_MG, BISHOP_MG_WHITE, KING_EG, KING_EG_WHITE, KING_MG, KING_MG_WHITE, KNIGHT_EG, KNIGHT_EG_WHITE, KNIGHT_MG, KNIGHT_MG_WHITE, PAWN_EG, PAWN_EG_WHITE, PAWN_MG, PAWN_MG_WHITE, QUEEN_EG, QUEEN_EG_WHITE, QUEEN_MG, QUEEN_MG_WHITE, ROOK_EG, ROOK_EG_WHITE, ROOK_MG, ROOK_MG_WHITE};
 
+use crate::search::SearchInfo;
+
 mod psqt;
 
 pub fn team_to_move<T: BitInt>(board: &mut Board<T>) -> i32 {
@@ -16,9 +18,15 @@ pub const BISHOP: i32 = 333;
 pub const ROOK: i32 = 563;
 pub const QUEEN: i32 = 950;
 
+pub const MOBILITY: i32 = 3;
+
 pub const MATERIAL: [ i32; 6 ] = [ PAWN, KNIGHT, BISHOP, ROOK, QUEEN, 0 ];
 
-pub fn eval<T: BitInt>(board: &mut Board<T>) -> i32 {
+pub fn eval<T: BitInt>(
+    board: &mut Board<T>,
+    info: &mut SearchInfo,
+    ply: usize
+) -> i32 {
     let mut score = 0;
 
     let pawns = board.state.pieces[0];
@@ -105,6 +113,31 @@ pub fn eval<T: BitInt>(board: &mut Board<T>) -> i32 {
         let weight = total_material - 2500;
         score += (mg * weight + eg * (2500 - weight)) / 2500;
     }
+
+    let mut white_mobility = 0;
+    let mut black_mobility = 0;
+
+
+    for ply in (0..ply).rev() {
+        if white_mobility > 0 && black_mobility > 0 { break; }
+        match info.mobility[ply] {
+            Some((mobility, team)) => {
+                match team {
+                    Team::White => {
+                        if white_mobility == 0 { white_mobility = mobility };
+                    }
+                    Team::Black => {
+                        if black_mobility == 0 { black_mobility = mobility; }
+                    }
+                }
+            }
+            None => {}
+        }
+    } 
+
+    let mobility_bonus = MOBILITY * ((white_mobility as i32)  - (black_mobility as i32));
+
+    score += mobility_bonus;
 
     score * team_to_move(board)
 }

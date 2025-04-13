@@ -1,8 +1,8 @@
-use std::{cmp::Ordering, i32};
+use std::{cmp::Ordering, i32, vec};
 
-use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{Action, ActionRecord}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
+use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{restore_perfectly, Action, ActionRecord, HistoryState}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
 
-use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
+use crate::{eval::{eval, MATERIAL, ROOK}, util::current_time_millis};
 
 
 #[derive(Clone, Debug, Copy)]
@@ -27,8 +27,10 @@ pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
     pub history: Vec<Vec<Vec<i32>>>,
+    pub killers: Vec<Vec<Option<Action>>>,
     pub zobrist: ZobristTable,
     pub hashes: Vec<u64>,
+    pub mobility: Vec<Option<(usize, Team)>>,
     pub tt: Vec<Option<TtEntry>>,
     pub tt_size: u64,
     pub nodes: u64,
@@ -54,10 +56,12 @@ fn mvv_lva<T: BitInt>(
 }   
 
 pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
+pub const MAX_KILLERS: usize = 2;
 
 fn score<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
+    ply: usize,
     act: Action, 
     opps: BitBoard<T>,
     found_best_move: Option<Action>
@@ -72,19 +76,29 @@ fn score<T: BitInt>(
         return HIGH_PRIORITY + mvv_lva(board, act);
     }
 
-    info.history[board.state.moving_team.index()][act.from as usize][act.to as usize]
+    let mut score = info.history[board.state.moving_team.index()][act.from as usize][act.to as usize];
+
+    for i in 0..MAX_KILLERS {
+        let killer = info.killers[i][ply];
+        if killer == Some(act) {
+            score += 100 - (50 * (i as i32));
+        }
+    }
+
+    score
 }
 
 fn sort_actions<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
+    ply: usize,
     opps: BitBoard<T>,
     actions: Vec<Action>,
     found_best_move: Option<Action>
 ) -> Vec<ScoredAction> {
     let mut scored = vec![];
     for act in actions {
-        scored.push(ScoredAction(act, score(board, info, act, opps, found_best_move)))
+        scored.push(ScoredAction(act, score(board, info, ply, act, opps, found_best_move)))
     }
 
     scored.sort_by(|a, b| b.1.cmp(&a.1));
@@ -104,10 +118,11 @@ fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>
 pub fn quiescence<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
+    ply: usize,
     mut alpha: i32, 
     beta: i32, 
 ) -> i32 {
-    let stand_pat = eval(board);
+    let stand_pat = eval(board, info, ply);
     let mut best = stand_pat;
 
     if stand_pat >= beta {
@@ -119,6 +134,8 @@ pub fn quiescence<T: BitInt>(
     }
 
     let actions = board.list_actions();
+    info.mobility[ply] = Some((actions.len(), board.state.moving_team));
+
     let opps = board.state.opposite_team();
     let mut captures = Vec::with_capacity(actions.len());
 
@@ -142,7 +159,7 @@ pub fn quiescence<T: BitInt>(
 
         info.nodes += 1;
 
-        let score = -quiescence(board, info, -beta, -alpha);
+        let score = -quiescence(board, info, ply, -beta, -alpha);
         board.state.restore(history);
 
         if score > best {
@@ -175,7 +192,7 @@ pub fn search<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
     depth: i32,
-    ply: i32,
+    ply: usize,
     mut alpha: i32, 
     beta: i32, 
     is_pv: bool
@@ -187,49 +204,71 @@ pub fn search<T: BitInt>(
     if info.abort { return 0; }
 
     if depth <= 0 {
-        return quiescence(board, info, alpha, beta);
+        return quiescence(board, info, ply, alpha, beta);
     }
-    
-    let eval = eval(board);
-    if depth <= 3 && eval - (100 * depth) >= beta {
-        return eval;
+
+    if depth <= 3 {
+        let eval = eval(board, info, ply);
+        if eval - (100 * depth) >= beta {
+            return eval;
+        }
     }
 
     let hash = board.game.processor.hash(board, &info.zobrist);
+
+    if info.hashes.contains(&hash) && ply > 0 {
+        return 0;
+    }
+
     let index = (hash % info.tt_size) as usize;
 
     let mut found_best_move: Option<Action> = None;
 
     let tt_hit = &info.tt[index];
-    if let Some(entry) = tt_hit {
-        if hash == entry.hash {
-            let is_in_bounds = match entry.bounds {
-                Bounds::Exact => true,
-                Bounds::Lower => entry.score >= beta,
-                Bounds::Upper => entry.score < alpha
-            };
-
-            if entry.depth >= depth && is_in_bounds {
-                if depth == info.root_depth {
-                    info.best_move = entry.best_move;
+    match tt_hit {
+        Some(entry) => {
+            if hash == entry.hash {
+                let is_in_bounds = match entry.bounds {
+                    Bounds::Exact => true,
+                    Bounds::Lower => entry.score >= beta,
+                    Bounds::Upper => entry.score < alpha
+                };
+    
+                if entry.depth >= depth && is_in_bounds {
+                    if depth == info.root_depth {
+                        info.best_move = entry.best_move;
+                    }
+    
+                    return entry.score;
                 }
-
-                return entry.score;
+    
+                found_best_move = entry.best_move;
             }
+        }
+        None => {}
+    }
 
-            found_best_move = entry.best_move;
+    let actions = board.list_actions();
+
+    let mut legal_actions = vec![];
+
+    for action in actions {
+        let history = board.play(action);
+        let is_legal = board.game.processor.is_legal(board);
+        board.state.restore(history);
+        if is_legal {
+            legal_actions.push(action);
         }
     }
 
-    let legal_actions = board.list_legal_actions();
     let opps = board.state.opposite_team();
 
     match board.game_state(&legal_actions) {
         GameState::Win(Team::White) => {
-            return MIN + ply;
+            return MIN + ply as i32;
         }
         GameState::Win(Team::Black) => {
-            return MIN + ply;
+            return MIN + ply as i32;
         }
         GameState::Draw => {
             return 0;
@@ -237,10 +276,6 @@ pub fn search<T: BitInt>(
         GameState::Ongoing => {
             // continue evaluation
         }
-    }
-
-    if info.hashes.contains(&hash) && ply > 0 {
-        return 0;
     }
 
     let null_last_move = match board.state.history.last() {
@@ -271,16 +306,20 @@ pub fn search<T: BitInt>(
     
     info.hashes.push(hash);
 
-    let scored_actions = sort_actions(board, info, opps, legal_actions, found_best_move);
+    let scored_actions = sort_actions(board, info, ply, opps, legal_actions, found_best_move);
 
-    let mut best = i32::MIN;
+    let mut best = i32::MIN + 1;
     let mut best_move: Option<Action> = None;
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
     let pv_node = is_pv;
 
+    let mut quiets: Vec<Action> = vec![];
+
+    info.mobility[ply] = Some((scored_actions.len(), board.state.moving_team));
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
+        let is_tactical = is_capture(board, act, opps);
         let history = board.play(act);
 
         info.nodes += 1;
@@ -296,6 +335,7 @@ pub fn search<T: BitInt>(
             } else {
                 1
             };
+
             let reduced = new_depth - r;
 
             score = -search(board, info, reduced, ply + 1, -alpha - 1, -alpha, false);
@@ -325,12 +365,26 @@ pub fn search<T: BitInt>(
         if score >= beta {
             bounds = Bounds::Lower; // CUT-node: beta-cutoff was performed
 
-            if !is_capture(board, act, opps) {
+            if !is_tactical {
                 info.history[board.state.moving_team.index()][act.from as usize][act.to as usize] += depth * depth;
+                for quiet in quiets {
+                    info.history[board.state.moving_team.index()][quiet.from as usize][quiet.to as usize] -= depth * depth;
+                }
+
+                let first_killer = info.killers[0][ply];
+                if first_killer != Some(act) {
+                    for i in (1..MAX_KILLERS).rev() {
+                        let previous = info.killers[i - 1][ply];
+                        info.killers[i][ply] = previous;
+                    }
+                    info.killers[0][ply] = Some(act);
+                }
             }
 
             break;
         }
+
+        quiets.push(act);
     }
     
     if info.abort { return 0; }
@@ -360,6 +414,8 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
         best_move: None,
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         hashes: vec![],
+        killers: vec![],
+        mobility: vec![ None; 100 ],
         zobrist: board.game.processor.gen_zobrist(board, 64),
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
@@ -370,16 +426,47 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
     }
 }
 
+pub fn aspiration<T: BitInt>(info: &mut SearchInfo, board: &mut Board<T>, depth: i32) -> i32 {
+    let max_window_size = ROOK;
+    let mut delta = 30;
+    let (mut alpha, mut beta) = if depth >= 5 {
+        (info.score - delta, info.score + delta)
+    } else {
+        (MIN, MAX)
+    };
+
+    loop {
+        let score = search(board, info, depth, 0, alpha, beta, true);
+        if info.abort {
+            return 0;
+        }
+
+        if score <= alpha {
+            alpha = (score - delta).max(MIN);
+        } else if score >= beta {
+            beta = (score + delta).min(MAX);
+        } else {
+            return score;
+        }
+
+        delta *= 2;
+        if delta >= max_window_size {
+            delta = MAX;
+        }
+    }
+}
+
 pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &mut Board<T>, soft_time: u64, hard_time: u64) {
     let start = current_time_millis();
     info.time_to_abort = start + hard_time as u128;
     info.abort = false;
     info.nodes = 0;
+    info.killers = vec![ vec![ None; 100 ]; MAX_KILLERS ];
 
     for depth in 1..100 {
         info.root_depth = depth;
 
-        let score = search(board, info, depth, 0, MIN, MAX, true);
+        let score = aspiration(info, board, depth);
         if info.abort {
             break;
         }
@@ -387,6 +474,14 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
         info.score = score;
 
         let current_time = current_time_millis();
+
+        let history = restore_perfectly(board);
+        let past_moves = board.state.history.clone();
+        let team = board.state.moving_team.clone();
+
+        board.state.restore(history);
+        board.state.history = past_moves;
+        board.state.moving_team = team;
 
         let mut time = (current_time - start) as u64;
         if time == 0 { time = 1; }
@@ -397,7 +492,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
             time: Some(time),
             nodes: Some(info.nodes),
             nps: Some(info.nodes / time * 1000),
-            pv: info.best_move.map(|action| vec![ board.display_uci_action(action) ]),
+            pv: info.best_move.map(|el| vec![ board.display_uci_action(el) ]),
             ..Default::default()
         });
 
