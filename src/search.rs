@@ -324,6 +324,8 @@ pub fn search<T: BitInt>(
     info.mobility[ply] = Some((scored_actions.len(), board.state.moving_team));
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
         let is_tactical = is_capture(board, act, opps);
+        let is_quiet = !is_tactical;
+
         let history = board.play(act);
 
         info.nodes += 1;
@@ -369,7 +371,7 @@ pub fn search<T: BitInt>(
         if score >= beta {
             bounds = Bounds::Lower; // CUT-node: beta-cutoff was performed
 
-            if !is_tactical {
+            if is_quiet {
                 info.history[board.state.moving_team.index()][act.from as usize][act.to as usize] += depth * depth;
                 for quiet in quiets {
                     info.history[board.state.moving_team.index()][quiet.from as usize][quiet.to as usize] -= depth * depth;

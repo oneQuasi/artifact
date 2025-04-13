@@ -4,3 +4,5 @@ engines
 config.json
 run.sh
 nonregression.sh
+perf.data
+flamegraph.svg
