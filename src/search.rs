@@ -464,15 +464,19 @@ pub fn search<T: BitInt>(
                 }
             } else {
                 update_history(&mut info.capture_history, team, act, depth * depth);
-                for &quiet in &quiets {
-                    update_history(&mut info.capture_history, team, quiet, -depth * depth);
+                for &noisy in &noisies {
+                    update_history(&mut info.capture_history, team, noisy, -depth * depth);
                 }
             }
 
             break;
         }
 
-        quiets.push(act);
+        if is_quiet {
+            quiets.push(act);
+        } else {
+            noisies.push(act);
+        }
     }
     
     if info.abort { return 0; }
