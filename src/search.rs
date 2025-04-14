@@ -55,6 +55,15 @@ fn mvv_lva<T: BitInt>(
     1000 + (victim_value - attacker_value)
 }   
 
+fn update(info: &mut SearchInfo, team: Team, action: Action, bonus: i32) {
+    let from = action.from as usize;
+    let to = action.to as usize;
+    let clamped_bonus = bonus.clamp(-300, 300);
+
+    info.history[team.index()][from][to]
+        += clamped_bonus - info.history[team.index()][from][to] * clamped_bonus.abs() / 300;
+}
+
 pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
 pub const MAX_KILLERS: usize = 2;
 
@@ -375,9 +384,10 @@ pub fn search<T: BitInt>(
             bounds = Bounds::Lower; // CUT-node: beta-cutoff was performed
 
             if is_quiet {
-                info.history[board.state.moving_team.index()][act.from as usize][act.to as usize] += depth * depth;
+                let team = board.state.moving_team;
+                update(info, team, act, depth * depth);
                 for quiet in quiets {
-                    info.history[board.state.moving_team.index()][quiet.from as usize][quiet.to as usize] -= depth * depth;
+                    update(info, team, quiet, depth * -depth);
                 }
 
                 let first_killer = info.killers[0][ply];
