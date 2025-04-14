@@ -32,6 +32,7 @@ pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
     pub history: History,
+    pub capture_history: History,
     pub conthist: ContinuationHistory,
     pub killers: Vec<Vec<Option<Action>>>,
     pub zobrist: ZobristTable,
@@ -101,11 +102,11 @@ fn score<T: BitInt>(
         }
     }
 
-    if is_capture(board, act, opps) {
-        return HIGH_PRIORITY + mvv_lva(board, act);
-    }
-
     let team = board.state.moving_team;
+    
+    if is_capture(board, act, opps) {
+        return HIGH_PRIORITY + mvv_lva(board, act) + info.capture_history[team.index()][act.from as usize][act.to as usize];
+    }
 
     let history = info.history[team.index()][act.from as usize][act.to as usize];
     let mut score = history;
@@ -461,6 +462,11 @@ pub fn search<T: BitInt>(
                     }
                     info.killers[0][ply] = Some(act);
                 }
+            } else {
+                update_history(&mut info.capture_history, team, act, depth * depth);
+                for &quiet in &quiets {
+                    update_history(&mut info.capture_history, team, quiet, -depth * depth);
+                }
             }
 
             break;
@@ -495,6 +501,7 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
     SearchInfo {
         root_depth: 0,
         best_move: None,
+        capture_history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         conthist: vec![ vec![ vec![ vec![ vec![ vec![ 0; squares ]; pieces ]; 2 ]; squares ]; pieces ]; 2 ],
         hashes: vec![],
