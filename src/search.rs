@@ -631,7 +631,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
             time: Some(time),
             nodes: Some(info.nodes),
             nps: Some(info.nodes / time * 1000),
-            pv: Some(pv_acts),
+            pv:  Some(pv_acts),
             ..Default::default()
         });
 

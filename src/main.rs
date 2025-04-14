@@ -32,22 +32,22 @@ fn main() {
                     match option {
                         GoOption::BTime(time) => {
                             if team == Team::Black {
-                                soft_time += time / 60;
-                                hard_time += time / 15;
+                                soft_time += time / 40;
+                                hard_time += time / 9;
                             }
                         }
                         GoOption::BInc(inc) => {
-                            soft_time += inc / 6;
+                            soft_time += inc / 4;
                         }
                         GoOption::WTime(time) => {
                             if team == Team::White {
-                                soft_time += time / 60;
-                                hard_time += time / 15;
+                                soft_time += time / 40;
+                                hard_time += time / 9;
                             }
                         }
                         GoOption::WInc(inc) => {
                             if team == Team::White {
-                                soft_time += inc / 6;
+                                soft_time += inc / 4;
                             }
                         }
                         GoOption::MoveTime(time) => {
