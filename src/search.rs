@@ -318,8 +318,6 @@ pub fn search<T: BitInt>(
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
-    let pv_node = is_pv;
-
     let mut quiets: Vec<Action> = vec![];
 
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
@@ -349,11 +347,11 @@ pub fn search<T: BitInt>(
             if score > alpha && reduced < new_depth {
                 score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha, false);
             }
-        } else if !pv_node || index > 0 {
+        } else if !is_pv || index > 0 {
             score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha, false);
         }
         
-        if pv_node && (index == 0 || score > alpha) {
+        if is_pv && (index == 0 || score > alpha) {
             score = -search(board, info, new_depth, ply + 1, -beta, -alpha, is_pv);
         }
 
