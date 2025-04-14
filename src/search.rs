@@ -334,12 +334,16 @@ pub fn search<T: BitInt>(
         let is_quiet = !is_tactical;
 
         let lmr = index >= 3;
-        let r = if !lmr {
-            0
-        } else if index >= 6 {
-            2
+        let r = if lmr {
+            if index >= 12 {
+                3
+            } else if index >= 6 {
+                2
+            } else {
+                1
+            }
         } else {
-            1
+            0
         };
         
         if depth != info.root_depth && is_quiet && (depth - r) <= 8 && eval + 300 + (75 * depth) <= alpha {
@@ -459,8 +463,6 @@ pub fn aspiration<T: BitInt>(info: &mut SearchInfo, board: &mut Board<T>, depth:
         if info.abort {
             return 0;
         }
-
-        //println!("{score} in {alpha}..{beta}");
 
         if score <= alpha && score > MIN {
             alpha = (score - delta).max(MIN);
