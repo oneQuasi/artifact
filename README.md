@@ -20,6 +20,8 @@ List of current features:
     - Move Ordering:
         - [MVV-LVA](https://www.chessprogramming.org/MVV-LVA)
         - [History Heuristic](https://www.chessprogramming.org/History_Heuristic) bonuses and penalties
+            - [Continuation History](https://www.chessprogramming.org/History_Heuristic#Continuation_History)
+            - [Capture History](https://www.chessprogramming.org/History_Heuristic#Capture_History)
         - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) ordering
         - [Killer Moves Heuristic](https://www.chessprogramming.org/Killer_Move)
 - Evaluation:
