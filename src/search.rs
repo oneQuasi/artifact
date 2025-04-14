@@ -159,7 +159,7 @@ pub fn quiescence<T: BitInt>(
 
         info.nodes += 1;
 
-        let score = -quiescence(board, info, ply, -beta, -alpha);
+        let score = -quiescence(board, info, ply + 1, -beta, -alpha);
         board.state.restore(history);
 
         if score > best {
@@ -249,6 +249,7 @@ pub fn search<T: BitInt>(
     }
 
     let actions = board.list_actions();
+    info.mobility[ply] = Some((actions.len(), board.state.moving_team));
 
     let mut legal_actions = vec![];
 
@@ -321,7 +322,6 @@ pub fn search<T: BitInt>(
 
     let mut quiets: Vec<Action> = vec![];
 
-    info.mobility[ply] = Some((scored_actions.len(), board.state.moving_team));
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
         let is_tactical = is_capture(board, act, opps);
         let is_quiet = !is_tactical;
