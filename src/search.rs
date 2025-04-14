@@ -35,6 +35,7 @@ pub struct SearchInfo {
     pub capture_history: History,
     pub conthist: ContinuationHistory,
     pub killers: Vec<Vec<Option<Action>>>,
+    pub pv_table: Vec<Vec<ActionRecord>>,
     pub zobrist: ZobristTable,
     pub hashes: Vec<u64>,
     pub mobility: Vec<Option<(usize, Team)>>,
@@ -48,6 +49,14 @@ pub struct SearchInfo {
 
 pub const MAX: i32 = 1_000_000;
 pub const MIN: i32 = -1_000_000;
+
+fn set_or_push<T>(vec: &mut Vec<T>, index: usize, item: T) {
+    if vec.len() > index {
+        vec[index] = item;
+    } else if vec.len() == index {
+        vec.push(item);
+    }
+}
 
 fn mvv_lva<T: BitInt>(
     board: &mut Board<T>, 
@@ -277,11 +286,7 @@ pub fn search<T: BitInt>(
                     Bounds::Upper => entry.score < alpha
                 };
     
-                if entry.depth >= depth && is_in_bounds {
-                    if depth == info.root_depth {
-                        info.best_move = entry.best_move;
-                    }
-    
+                if entry.depth >= depth && is_in_bounds && !is_pv {
                     return entry.score;
                 }
     
@@ -427,6 +432,29 @@ pub fn search<T: BitInt>(
             if score > alpha {
                 bounds = Bounds::Exact; // PV-node: move exceeded alpha but not beta
                 alpha = score;
+
+                if is_pv {
+                    let ply = ply as usize;
+
+                    match info.pv_table.get((ply + 1) as usize) {
+                        Some(pv_moves) => {
+                            for (i, pv) in pv_moves.clone().iter().enumerate() {
+                                match pv {
+                                    ActionRecord::Null() => {
+                                        set_or_push(&mut info.pv_table[ply], i + 1, ActionRecord::Null());
+                                        break;
+                                    }
+                                    &ActionRecord::Action(act) => {
+                                        set_or_push(&mut info.pv_table[ply], i + 1, ActionRecord::Action(act));
+                                    }
+                                }
+                            }
+                        }
+                        None => {}
+                    }
+
+                    set_or_push(&mut info.pv_table[ply], 0, ActionRecord::Action(act));
+                }
             }
         }
 
@@ -508,6 +536,7 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
         capture_history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         conthist: vec![ vec![ vec![ vec![ vec![ vec![ 0; squares ]; pieces ]; 2 ]; squares ]; pieces ]; 2 ],
+        pv_table: vec![],
         hashes: vec![],
         killers: vec![],
         mobility: vec![ None; 100 ],
@@ -560,6 +589,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
 
     for depth in 1..100 {
         info.root_depth = depth;
+        info.pv_table = vec![ vec![]; 100 ];
 
         let score = aspiration(info, board, depth);
         if info.abort {
@@ -574,6 +604,19 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
         let past_moves = board.state.history.clone();
         let team = board.state.moving_team.clone();
 
+        let mut pv_acts: Vec<String> = vec![];
+        for act in info.pv_table[0].clone() {
+            if let ActionRecord::Action(act) = act {
+                if board.state.mailbox[act.from as usize] == 0 {
+                    // Invalid PV end early
+                    break;
+                }
+
+                pv_acts.push(board.display_uci_action(act));
+                board.play(act);
+            }
+        }
+
         board.state.restore(history);
         board.state.history = past_moves;
         board.state.moving_team = team;
@@ -587,7 +630,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
             time: Some(time),
             nodes: Some(info.nodes),
             nps: Some(info.nodes / time * 1000),
-            pv: info.best_move.map(|el| vec![ board.display_uci_action(el) ]),
+            pv: Some(pv_acts),
             ..Default::default()
         });
 
