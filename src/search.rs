@@ -254,6 +254,7 @@ pub fn search<T: BitInt>(
     }
 
     if info.abort { return 0; }
+    info.pv_table[ply] = vec![];
 
     if depth <= 0 {
         return quiescence(board, info, ply, alpha, beta);
