@@ -207,8 +207,8 @@ pub fn search<T: BitInt>(
         return quiescence(board, info, ply, alpha, beta);
     }
 
+    let eval = eval(board, info, ply);
     if depth <= 3 {
-        let eval = eval(board, info, ply);
         if eval - (100 * depth) >= beta {
             return eval;
         }
@@ -313,7 +313,7 @@ pub fn search<T: BitInt>(
 
     let scored_actions = sort_actions(board, info, ply, opps, legal_actions, found_best_move);
 
-    let mut best = i32::MIN + 1;
+    let mut best = MIN;
     let mut best_move: Option<Action> = None;
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
@@ -324,22 +324,27 @@ pub fn search<T: BitInt>(
         let is_tactical = is_capture(board, act, opps);
         let is_quiet = !is_tactical;
 
+        let lmr = index >= 3;
+        let r = if !lmr {
+            0
+        } else if index >= 6 {
+            2
+        } else {
+            1
+        };
+        
+        if depth != info.root_depth && is_quiet && (depth - r) <= 8 && eval + 300 + (75 * depth) <= alpha {
+            continue;
+        }
+
         let history = board.play(act);
 
         info.nodes += 1;
-
-        let lmr = index >= 3;
 
         let new_depth = depth - 1;
         let mut score: i32 = MIN; 
         
         if lmr {
-            let r = if index >= 6 {
-                2
-            } else {
-                1
-            };
-
             let reduced = new_depth - r;
 
             score = -search(board, info, reduced, ply + 1, -alpha - 1, -alpha, false);
@@ -393,7 +398,7 @@ pub fn search<T: BitInt>(
     
     if info.abort { return 0; }
 
-    if depth == info.root_depth {
+    if depth == info.root_depth && best_move.is_some() {
         info.best_move = best_move;
     }
 
@@ -445,9 +450,11 @@ pub fn aspiration<T: BitInt>(info: &mut SearchInfo, board: &mut Board<T>, depth:
             return 0;
         }
 
-        if score <= alpha {
+        //println!("{score} in {alpha}..{beta}");
+
+        if score <= alpha && score > MIN {
             alpha = (score - delta).max(MIN);
-        } else if score >= beta {
+        } else if score >= beta && score < MAX {
             beta = (score + delta).min(MAX);
         } else {
             return score;
