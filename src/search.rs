@@ -95,6 +95,30 @@ fn update_conthist(conthist: &mut ContinuationHistory, prio: Team, previous: Act
 pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
 pub const MAX_KILLERS: usize = 2;
 
+fn get_history<T: BitInt>(
+    board: &mut Board<T>, 
+    info: &mut SearchInfo,
+    act: Action, 
+    previous: Option<Action>,
+    two_ply: Option<Action>,
+    noisy: bool
+) -> i32 {
+    let team = board.state.moving_team;
+    if noisy {
+        info.capture_history[team.index()][act.from as usize][act.to as usize]
+    } else {
+        let mut history = info.history[team.index()][act.from as usize][act.to as usize];
+        if let Some(previous) = previous {
+            history += info.conthist[team.next().index()][previous.piece as usize][previous.to as usize][team.index()][act.piece as usize][act.to as usize] / 2;
+        }
+        if let Some(previous) = two_ply {
+            history += info.conthist[team.index()][previous.piece as usize][previous.to as usize][team.index()][act.piece as usize][act.to as usize] / 2;
+        }
+
+        history
+    }
+}
+
 fn score<T: BitInt>(
     board: &mut Board<T>, 
     info: &mut SearchInfo,
@@ -110,23 +134,12 @@ fn score<T: BitInt>(
             return HIGH_PRIORITY * 2;
         }
     }
-
-    let team = board.state.moving_team;
     
     if is_capture(board, act, opps) {
-        return HIGH_PRIORITY + mvv_lva(board, act) + info.capture_history[team.index()][act.from as usize][act.to as usize];
+        return HIGH_PRIORITY + mvv_lva(board, act) + get_history(board, info, act, previous, two_ply, true);
     }
 
-    let history = info.history[team.index()][act.from as usize][act.to as usize];
-    let mut score = history;
-
-    if let Some(previous) = previous {
-        score += info.conthist[team.next().index()][previous.piece as usize][previous.to as usize][team.index()][act.piece as usize][act.to as usize] / 2;
-    }
-
-    if let Some(previous) = two_ply {
-        score += info.conthist[team.index()][previous.piece as usize][previous.to as usize][team.index()][act.piece as usize][act.to as usize] / 2;
-    }
+    let mut score = get_history(board, info, act, previous, two_ply, false);
 
     for i in 0..MAX_KILLERS {
         let killer = info.killers[i][ply];
@@ -384,16 +397,23 @@ pub fn search<T: BitInt>(
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
         let is_tactical = is_capture(board, act, opps);
         let is_quiet = !is_tactical;
+        let team = board.state.moving_team;
 
         let lmr = index >= 3;
         let r = if lmr {
-            if index >= 12 {
+            let mut r = if index >= 12 {
                 3
             } else if index >= 6 {
                 2
             } else {
                 1
-            }
+            };
+
+            let history = get_history(board, info, act, previous, two_ply, is_tactical);
+            r -= history.clamp(-600, 600) / 300;
+
+            r = r.max(0);
+            r
         } else {
             0
         };
@@ -462,7 +482,6 @@ pub fn search<T: BitInt>(
         if score >= beta {
             bounds = Bounds::Lower; // CUT-node: beta-cutoff was performed
 
-            let team = board.state.moving_team;
             if is_quiet {
                 update_history(&mut info.history, team, act, depth * depth);
                 for &quiet in &quiets {
@@ -631,7 +650,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
             time: Some(time),
             nodes: Some(info.nodes),
             nps: Some(info.nodes / time * 1000),
-            pv:  Some(pv_acts),
+            pv: None, //Some(pv_acts),
             ..Default::default()
         });
 
