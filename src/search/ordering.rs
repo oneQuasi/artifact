@@ -2,7 +2,7 @@ use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{Action, ActionRecor
 
 use crate::eval::MATERIAL;
 
-use super::{is_capture, SearchInfo, TtEntry};
+use super::{is_noisy, SearchInfo, TtEntry};
 
 // [team][sq][sq]
 pub type History = Vec<Vec<Vec<i32>>>;
@@ -17,13 +17,25 @@ pub fn mvv_lva<T: BitInt>(
     board: &mut Board<T>, 
     action: Action,
 ) -> i32 {
-    let attacker_type = board.state.mailbox[action.from as usize] - 1;
-    let victim_type = board.state.mailbox[action.to as usize] - 1;
+    let mut score = 1000;
+    if action.piece == 0 && action.info >= 3 {
+        // Pawn Promotion
+        score += MATERIAL[(action.info - 2) as usize] - MATERIAL[0];
+    }
 
-    let attacker_value = MATERIAL[attacker_type as usize];
-    let victim_value = MATERIAL[victim_type as usize];
+    let victim_mailbox = board.state.mailbox[action.to as usize];
 
-    1000 + (victim_value - attacker_value)
+    if victim_mailbox > 0 {
+        let attacker_type = board.state.mailbox[action.from as usize] - 1;
+        let victim_type = victim_mailbox - 1;
+
+        let attacker_value = MATERIAL[attacker_type as usize];
+        let victim_value = MATERIAL[victim_type as usize];
+
+        score += victim_value - attacker_value;
+    }
+
+    score
 }   
 
 pub fn update_history(history: &mut History, team: Team, action: Action, bonus: i32) {
@@ -90,7 +102,7 @@ pub fn score<T: BitInt>(
         }
     }
     
-    if is_capture(board, act, opps) {
+    if is_noisy(board, act, opps) {
         return HIGH_PRIORITY + mvv_lva(board, act) + get_history(board, info, act, previous, two_ply, true);
     }
 

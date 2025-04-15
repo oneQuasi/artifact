@@ -53,7 +53,12 @@ fn set_or_push<T>(vec: &mut Vec<T>, index: usize, item: T) {
     }
 }
 
-fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
+fn is_noisy<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
+    if action.piece == 0 && action.info >= 3 {
+        // Pawn Promotion
+        return true;
+    }
+
     let to_idx = action.to as usize;
     if board.state.mailbox[to_idx] == 0 {
         return false;
@@ -87,7 +92,7 @@ pub fn quiescence<T: BitInt>(
     let mut captures = Vec::with_capacity(actions.len());
 
     for act in actions {
-        if is_capture(board, act, opps) {
+        if is_noisy(board, act, opps) {
             captures.push(act);
         }
     }
@@ -277,7 +282,7 @@ pub fn search<T: BitInt>(
     let mut noisies: Vec<Action> = vec![];
 
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
-        let is_tactical = is_capture(board, act, opps);
+        let is_tactical = is_noisy(board, act, opps);
         let is_quiet = !is_tactical;
         let team = board.state.moving_team;
 
