@@ -267,7 +267,7 @@ pub fn search<T: BitInt>(
     }
 
     if info.abort { return 0; }
-    info.pv_table[ply] = vec![];
+    //info.pv_table[ply] = vec![];
 
     if depth <= 0 {
         return quiescence(board, info, ply, alpha, beta);
@@ -399,8 +399,7 @@ pub fn search<T: BitInt>(
         let is_quiet = !is_tactical;
         let team = board.state.moving_team;
 
-        let lmr = index >= 3;
-        let r = if lmr {
+        let r = if index >= 3 {
             let mut r = if index >= 12 {
                 3
             } else if index >= 6 {
@@ -417,6 +416,7 @@ pub fn search<T: BitInt>(
         } else {
             0
         };
+        let lmr = r > 0;
         
         if depth != info.root_depth && is_quiet && (depth - r) <= 8 && eval + 300 + (75 * depth) <= alpha {
             continue;
@@ -620,7 +620,8 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
 
         let current_time = current_time_millis();
 
-        let history = restore_perfectly(board);
+        // PV Tables are still bugged, so temporarily disabling them.
+        /*let history = restore_perfectly(board);
         let past_moves = board.state.history.clone();
         let team = board.state.moving_team.clone();
 
@@ -639,7 +640,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
 
         board.state.restore(history);
         board.state.history = past_moves;
-        board.state.moving_team = team;
+        board.state.moving_team = team;*/
 
         let mut time = (current_time - start) as u64;
         if time == 0 { time = 1; }
