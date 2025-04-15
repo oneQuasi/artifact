@@ -274,7 +274,7 @@ pub fn search<T: BitInt>(
     }
 
     let eval = eval(board, info, ply);
-    if depth <= 3 {
+    if !is_pv && depth <= 3 {
         if eval - (100 * depth) >= beta {
             return eval;
         }
@@ -359,7 +359,7 @@ pub fn search<T: BitInt>(
     let history = board.play_null();
     board.state.restore(history);
 
-    if depth >= 3 && zugzwang_unlikely(board) && !null_last_move {
+    if !is_pv && depth >= 3 && zugzwang_unlikely(board) && !null_last_move {
         let reduction = 3 + (depth / 5);
         let nm_depth = depth - reduction;
 
