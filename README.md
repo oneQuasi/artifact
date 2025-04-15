@@ -14,11 +14,14 @@ List of current features:
     - [Principle Variation Search](https://www.chessprogramming.org/Principal_Variation_Search)
     - [Late Move Reductions](https://www.chessprogramming.org/Late_Move_Reductions)
     - [Reverse Futility Pruning](https://www.chessprogramming.org/Reverse_Futility_Pruning)
+    - [Futility Pruning](https://www.chessprogramming.org/Futility_Pruning)
     - [Null Move Pruning](https://www.chessprogramming.org/Null_Move_Pruning)
     - [Aspiration Windows](https://www.chessprogramming.org/Aspiration_Windows)
     - Move Ordering:
         - [MVV-LVA](https://www.chessprogramming.org/MVV-LVA)
         - [History Heuristic](https://www.chessprogramming.org/History_Heuristic) bonuses and penalties
+            - [Continuation History](https://www.chessprogramming.org/History_Heuristic#Continuation_History)
+            - [Capture History](https://www.chessprogramming.org/History_Heuristic#Capture_History)
         - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) ordering
         - [Killer Moves Heuristic](https://www.chessprogramming.org/Killer_Move)
 - Evaluation:

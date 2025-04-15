@@ -1,9 +1,11 @@
 use std::{cmp::Ordering, i32, vec};
 
 use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{restore_perfectly, Action, ActionRecord, HistoryState}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
+use ordering::{get_history, mvv_lva, sort_actions, update_conthist, update_history, ContinuationHistory, History, ScoredAction, MAX_KILLERS};
 
 use crate::{eval::{eval, MATERIAL, ROOK}, util::current_time_millis};
 
+mod ordering;
 
 #[derive(Clone, Debug, Copy)]
 pub enum Bounds {
@@ -21,13 +23,14 @@ pub struct TtEntry {
     pub bounds: Bounds
 }
 
-#[derive(Clone, Debug, Copy)]
-pub struct ScoredAction(pub Action, pub i32);
 pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
-    pub history: Vec<Vec<Vec<i32>>>,
+    pub history: History,
+    pub capture_history: History,
+    pub conthist: ContinuationHistory,
     pub killers: Vec<Vec<Option<Action>>>,
+    pub pv_table: Vec<Vec<ActionRecord>>,
     pub zobrist: ZobristTable,
     pub hashes: Vec<u64>,
     pub mobility: Vec<Option<(usize, Team)>>,
@@ -42,71 +45,20 @@ pub struct SearchInfo {
 pub const MAX: i32 = 1_000_000;
 pub const MIN: i32 = -1_000_000;
 
-fn mvv_lva<T: BitInt>(
-    board: &mut Board<T>, 
-    action: Action,
-) -> i32 {
-    let attacker_type = board.state.mailbox[action.from as usize] - 1;
-    let victim_type = board.state.mailbox[action.to as usize] - 1;
-
-    let attacker_value = MATERIAL[attacker_type as usize];
-    let victim_value = MATERIAL[victim_type as usize];
-
-    1000 + (victim_value - attacker_value)
-}   
-
-pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
-pub const MAX_KILLERS: usize = 2;
-
-fn score<T: BitInt>(
-    board: &mut Board<T>, 
-    info: &mut SearchInfo,
-    ply: usize,
-    act: Action, 
-    opps: BitBoard<T>,
-    found_best_move: Option<Action>
-) -> i32 {
-    if let Some(found_best_move) = found_best_move {
-        if found_best_move == act {
-            return HIGH_PRIORITY * 2;
-        }
+fn set_or_push<T>(vec: &mut Vec<T>, index: usize, item: T) {
+    if vec.len() > index {
+        vec[index] = item;
+    } else if vec.len() == index {
+        vec.push(item);
     }
-
-    if is_capture(board, act, opps) {
-        return HIGH_PRIORITY + mvv_lva(board, act);
-    }
-
-    let mut score = info.history[board.state.moving_team.index()][act.from as usize][act.to as usize];
-
-    for i in 0..MAX_KILLERS {
-        let killer = info.killers[i][ply];
-        if killer == Some(act) {
-            score += 100 - (50 * (i as i32));
-        }
-    }
-
-    score
 }
 
-fn sort_actions<T: BitInt>(
-    board: &mut Board<T>, 
-    info: &mut SearchInfo,
-    ply: usize,
-    opps: BitBoard<T>,
-    actions: Vec<Action>,
-    found_best_move: Option<Action>
-) -> Vec<ScoredAction> {
-    let mut scored = vec![];
-    for act in actions {
-        scored.push(ScoredAction(act, score(board, info, ply, act, opps, found_best_move)))
+fn is_noisy<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
+    if action.piece == 0 && action.info >= 3 {
+        // Pawn Promotion
+        return true;
     }
 
-    scored.sort_by(|a, b| b.1.cmp(&a.1));
-
-    scored
-}
-
-fn is_capture<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
     let to_idx = action.to as usize;
     if board.state.mailbox[to_idx] == 0 {
         return false;
@@ -140,7 +92,7 @@ pub fn quiescence<T: BitInt>(
     let mut captures = Vec::with_capacity(actions.len());
 
     for act in actions {
-        if is_capture(board, act, opps) {
+        if is_noisy(board, act, opps) {
             captures.push(act);
         }
     }
@@ -159,7 +111,7 @@ pub fn quiescence<T: BitInt>(
 
         info.nodes += 1;
 
-        let score = -quiescence(board, info, ply, -beta, -alpha);
+        let score = -quiescence(board, info, ply + 1, -beta, -alpha);
         board.state.restore(history);
 
         if score > best {
@@ -202,13 +154,14 @@ pub fn search<T: BitInt>(
     }
 
     if info.abort { return 0; }
+    //info.pv_table[ply] = vec![];
 
     if depth <= 0 {
         return quiescence(board, info, ply, alpha, beta);
     }
 
-    if depth <= 3 {
-        let eval = eval(board, info, ply);
+    let eval = eval(board, info, ply);
+    if !is_pv && depth <= 3 {
         if eval - (100 * depth) >= beta {
             return eval;
         }
@@ -234,11 +187,7 @@ pub fn search<T: BitInt>(
                     Bounds::Upper => entry.score < alpha
                 };
     
-                if entry.depth >= depth && is_in_bounds {
-                    if depth == info.root_depth {
-                        info.best_move = entry.best_move;
-                    }
-    
+                if entry.depth >= depth && is_in_bounds && !is_pv {
                     return entry.score;
                 }
     
@@ -249,6 +198,7 @@ pub fn search<T: BitInt>(
     }
 
     let actions = board.list_actions();
+    info.mobility[ply] = Some((actions.len(), board.state.moving_team));
 
     let mut legal_actions = vec![];
 
@@ -278,64 +228,95 @@ pub fn search<T: BitInt>(
         }
     }
 
+    let two_ply = match board.state.history.get(board.state.history.len().wrapping_sub(2)) {
+        Some(&ActionRecord::Action(action)) => Some(action),
+        _ => None
+    };
+
+    let previous = match board.state.history.last() {
+        Some(&ActionRecord::Action(action)) => Some(action),
+        _ => None
+    };
+
     let null_last_move = match board.state.history.last() {
         Some(ActionRecord::Null()) => true,
-        _ => false};
+        _ => false
+    };
     
-    let king = board.state.pieces[5].and(board.state.team_to_move());
     let history = board.play_null();
-    let in_check = board.list_captures(king).and(king).is_set();
     board.state.restore(history);
 
-    if depth >= 3 && zugzwang_unlikely(board) && !null_last_move && !in_check {
+    if !is_pv && depth >= 3 && zugzwang_unlikely(board) && !null_last_move {
         let reduction = 3 + (depth / 5);
         let nm_depth = depth - reduction;
 
         let history = board.play_null();
-        let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1, is_pv);
-        board.state.restore(history);
+        let is_legal = board.game.processor.is_legal(board);
 
-        if null_score >= beta {
-            return if null_score > MAX / 2 {
-                beta
-            } else {
-                null_score
+        if is_legal {
+            let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1, is_pv);
+            board.state.restore(history);
+    
+            if null_score >= beta {
+                return if null_score > MAX / 2 {
+                    beta
+                } else {
+                    null_score
+                }
             }
+        } else {
+            board.state.restore(history);
         }
     }
     
     info.hashes.push(hash);
 
-    let scored_actions = sort_actions(board, info, ply, opps, legal_actions, found_best_move);
+    let scored_actions = sort_actions(board, info, ply, opps, legal_actions, previous, two_ply, found_best_move);
 
-    let mut best = i32::MIN + 1;
+    let mut best = MIN;
     let mut best_move: Option<Action> = None;
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
 
-    let pv_node = is_pv;
-
     let mut quiets: Vec<Action> = vec![];
+    let mut noisies: Vec<Action> = vec![];
 
-    info.mobility[ply] = Some((scored_actions.len(), board.state.moving_team));
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
-        let is_tactical = is_capture(board, act, opps);
-        let history = board.play(act);
+        let is_tactical = is_noisy(board, act, opps);
+        let is_quiet = !is_tactical;
+        let team = board.state.moving_team;
 
-        info.nodes += 1;
-
-        let lmr = index >= 3;
-
-        let new_depth = depth - 1;
-        let mut score: i32 = MIN; 
-        
-        if lmr {
-            let r = if index >= 6 {
+        let r = if index >= 3 {
+            let mut r = if index >= 12 {
+                3
+            } else if index >= 6 {
                 2
             } else {
                 1
             };
 
+            let history = get_history(board, info, act, previous, two_ply, is_tactical);
+            r -= history.clamp(-600, 600) / 300;
+
+            r = r.max(0);
+            r
+        } else {
+            0
+        };
+        let lmr = r > 0;
+        
+        if depth != info.root_depth && is_quiet && (depth - r) <= 8 && eval + 300 + (75 * depth) <= alpha {
+            continue;
+        }
+
+        let history = board.play(act);
+
+        info.nodes += 1;
+
+        let new_depth = depth - 1;
+        let mut score: i32 = MIN; 
+        
+        if lmr {
             let reduced = new_depth - r;
 
             score = -search(board, info, reduced, ply + 1, -alpha - 1, -alpha, false);
@@ -343,11 +324,11 @@ pub fn search<T: BitInt>(
             if score > alpha && reduced < new_depth {
                 score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha, false);
             }
-        } else if !pv_node || index > 0 {
+        } else if !is_pv || index > 0 {
             score = -search(board, info, new_depth, ply + 1, -alpha - 1, -alpha, false);
         }
         
-        if pv_node && (index == 0 || score > alpha) {
+        if is_pv && (index == 0 || score > alpha) {
             score = -search(board, info, new_depth, ply + 1, -beta, -alpha, is_pv);
         }
 
@@ -359,16 +340,53 @@ pub fn search<T: BitInt>(
             if score > alpha {
                 bounds = Bounds::Exact; // PV-node: move exceeded alpha but not beta
                 alpha = score;
+
+                if is_pv {
+                    let ply = ply as usize;
+
+                    match info.pv_table.get((ply + 1) as usize) {
+                        Some(pv_moves) => {
+                            for (i, pv) in pv_moves.clone().iter().enumerate() {
+                                match pv {
+                                    ActionRecord::Null() => {
+                                        set_or_push(&mut info.pv_table[ply], i + 1, ActionRecord::Null());
+                                        break;
+                                    }
+                                    &ActionRecord::Action(act) => {
+                                        set_or_push(&mut info.pv_table[ply], i + 1, ActionRecord::Action(act));
+                                    }
+                                }
+                            }
+                        }
+                        None => {}
+                    }
+
+                    set_or_push(&mut info.pv_table[ply], 0, ActionRecord::Action(act));
+                }
             }
         }
 
         if score >= beta {
             bounds = Bounds::Lower; // CUT-node: beta-cutoff was performed
 
-            if !is_tactical {
-                info.history[board.state.moving_team.index()][act.from as usize][act.to as usize] += depth * depth;
-                for quiet in quiets {
-                    info.history[board.state.moving_team.index()][quiet.from as usize][quiet.to as usize] -= depth * depth;
+            if is_quiet {
+                update_history(&mut info.history, team, act, depth * depth);
+                for &quiet in &quiets {
+                    update_history(&mut info.history, team, quiet, -depth * depth);
+                }
+
+                if let Some(previous) = previous {
+                    update_conthist(&mut info.conthist, team.next(), previous, team, act, depth * depth);
+                    for &quiet in &quiets {
+                        update_conthist(&mut info.conthist, team.next(), previous, team, quiet, -depth * depth);
+                    }
+                }
+
+                if let Some(previous) = two_ply {
+                    update_conthist(&mut info.conthist, team, previous, team, act, depth * depth);
+                    for &quiet in &quiets {
+                        update_conthist(&mut info.conthist, team, previous, team, quiet, -depth * depth);
+                    }
                 }
 
                 let first_killer = info.killers[0][ply];
@@ -379,17 +397,26 @@ pub fn search<T: BitInt>(
                     }
                     info.killers[0][ply] = Some(act);
                 }
+            } else {
+                update_history(&mut info.capture_history, team, act, depth * depth);
+                for &noisy in &noisies {
+                    update_history(&mut info.capture_history, team, noisy, -depth * depth);
+                }
             }
 
             break;
         }
 
-        quiets.push(act);
+        if is_quiet {
+            quiets.push(act);
+        } else {
+            noisies.push(act);
+        }
     }
     
     if info.abort { return 0; }
 
-    if depth == info.root_depth {
+    if depth == info.root_depth && best_move.is_some() {
         info.best_move = best_move;
     }
 
@@ -408,11 +435,15 @@ pub fn search<T: BitInt>(
 
 pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
     let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
+    let pieces = board.game.pieces.len() as usize;
 
     SearchInfo {
         root_depth: 0,
         best_move: None,
+        capture_history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
+        conthist: vec![ vec![ vec![ vec![ vec![ vec![ 0; squares ]; pieces ]; 2 ]; squares ]; pieces ]; 2 ],
+        pv_table: vec![],
         hashes: vec![],
         killers: vec![],
         mobility: vec![ None; 100 ],
@@ -441,9 +472,9 @@ pub fn aspiration<T: BitInt>(info: &mut SearchInfo, board: &mut Board<T>, depth:
             return 0;
         }
 
-        if score <= alpha {
+        if score <= alpha && score > MIN {
             alpha = (score - delta).max(MIN);
-        } else if score >= beta {
+        } else if score >= beta && score < MAX {
             beta = (score + delta).min(MAX);
         } else {
             return score;
@@ -465,6 +496,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
 
     for depth in 1..100 {
         info.root_depth = depth;
+        info.pv_table = vec![ vec![]; 100 ];
 
         let score = aspiration(info, board, depth);
         if info.abort {
@@ -475,13 +507,27 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
 
         let current_time = current_time_millis();
 
-        let history = restore_perfectly(board);
+        // PV Tables are still bugged, so temporarily disabling them.
+        /*let history = restore_perfectly(board);
         let past_moves = board.state.history.clone();
         let team = board.state.moving_team.clone();
 
+        let mut pv_acts: Vec<String> = vec![];
+        for act in info.pv_table[0].clone() {
+            if let ActionRecord::Action(act) = act {
+                if board.state.mailbox[act.from as usize] == 0 {
+                    // Invalid PV end early
+                    break;
+                }
+
+                pv_acts.push(board.display_uci_action(act));
+                board.play(act);
+            }
+        }
+
         board.state.restore(history);
         board.state.history = past_moves;
-        board.state.moving_team = team;
+        board.state.moving_team = team;*/
 
         let mut time = (current_time - start) as u64;
         if time == 0 { time = 1; }
@@ -492,7 +538,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
             time: Some(time),
             nodes: Some(info.nodes),
             nps: Some(info.nodes / time * 1000),
-            pv: info.best_move.map(|el| vec![ board.display_uci_action(el) ]),
+            pv: None, //Some(pv_acts),
             ..Default::default()
         });
 
