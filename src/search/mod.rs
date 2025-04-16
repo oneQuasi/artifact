@@ -565,7 +565,7 @@ pub fn iterative_deepening<T: BitInt, const N: usize>(uci: &Uci, info: &mut Sear
             time: Some(time),
             nodes: Some(info.nodes),
             nps: Some(info.nodes / time * 1000),
-            pv: None, //Some(pv_acts),
+            pv: info.best_move.map(|el| vec![ board.display_uci_action(el) ]), //Some(pv_acts),
             ..Default::default()
         });
 

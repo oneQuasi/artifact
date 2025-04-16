@@ -67,16 +67,21 @@ pub fn get_history<T: BitInt, const N: usize>(
     two_ply: Option<Action>,
     noisy: bool
 ) -> i32 {
+    let to = act.to as usize;
+    let from = act.from as usize;
+    let piece = act.piece as usize;
+
     let team = board.state.moving_team;
+
     if noisy {
-        info.capture_history[team.index()][act.from as usize][act.to as usize]
+        info.capture_history[team.index()][from][to]
     } else {
-        let mut history = info.history[team.index()][act.from as usize][act.to as usize];
+        let mut history = info.history[team.index()][from][to];
         if let Some(previous) = previous {
-            history += info.conthist[team.next().index()][previous.piece as usize][previous.to as usize][team.index()][act.piece as usize][act.to as usize] / 2;
+            history += info.conthist[team.next().index()][previous.piece as usize][previous.to as usize][team.index()][piece][to] / 2;
         }
         if let Some(previous) = two_ply {
-            history += info.conthist[team.index()][previous.piece as usize][previous.to as usize][team.index()][act.piece as usize][act.to as usize] / 2;
+            history += info.conthist[team.index()][previous.piece as usize][previous.to as usize][team.index()][piece][to] / 2;
         }
 
         history
