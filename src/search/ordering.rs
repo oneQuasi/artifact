@@ -35,13 +35,20 @@ pub fn mvv_lva<T: BitInt, const N: usize>(
     score
 }   
 
+pub const MAX_HISTORY: i32 = 300;
+pub const MIN_HISTORY: i32 = -MAX_HISTORY;
+
+pub fn history_bonus(depth: i32) -> i32 {
+    depth * depth
+}
+
 pub fn update_history(history: &mut History, team: Team, action: Action, bonus: i32) {
     let from = action.from as usize;
     let to = action.to as usize;
-    let clamped_bonus = bonus.clamp(-300, 300);
+    let clamped_bonus = bonus.clamp(MIN_HISTORY, MAX_HISTORY);
 
     history[team.index()][from][to]
-        += clamped_bonus - history[team.index()][from][to] * clamped_bonus.abs() / 300;
+        += clamped_bonus - history[team.index()][from][to] * clamped_bonus.abs() / MAX_HISTORY;
 }
 
 pub fn update_conthist(conthist: &mut ContinuationHistory, prio: Team, previous: Action, team: Team, action: Action, bonus: i32) {
@@ -50,10 +57,10 @@ pub fn update_conthist(conthist: &mut ContinuationHistory, prio: Team, previous:
 
     let piece = action.piece as usize;
     let to = action.to as usize;
-    let clamped_bonus = bonus.clamp(-300, 300);
+    let clamped_bonus = bonus.clamp(MIN_HISTORY, MAX_HISTORY);
 
     conthist[prio.index()][prio_piece][prio_to][team.index()][piece][to]
-        += clamped_bonus - conthist[prio.index()][prio_piece][prio_to][team.index()][piece][to] * clamped_bonus.abs() / 300;
+        += clamped_bonus - conthist[prio.index()][prio_piece][prio_to][team.index()][piece][to] * clamped_bonus.abs() / MAX_HISTORY;
 }
 
 pub const HIGH_PRIORITY: i32 = 2i32.pow(28);

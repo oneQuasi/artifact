@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, i32, vec};
 
 use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{Action, ActionRecord}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
-use ordering::{get_history, mvv_lva, sort_actions, update_conthist, update_history, ContinuationHistory, History, ScoredAction, MAX_KILLERS};
+use ordering::{get_history, history_bonus, mvv_lva, sort_actions, update_conthist, update_history, ContinuationHistory, History, ScoredAction, MAX_KILLERS};
 
 use crate::{eval::{eval, MATERIAL, ROOK}, util::current_time_millis};
 
@@ -397,22 +397,22 @@ pub fn search<T: BitInt, const N: usize>(
             bounds = Bounds::Lower; // CUT-node: beta-cutoff was performed
 
             if is_quiet {
-                update_history(&mut info.history, team, act, depth * depth);
+                update_history(&mut info.history, team, act, history_bonus(depth));
                 for &quiet in &quiets {
-                    update_history(&mut info.history, team, quiet, -depth * depth);
+                    update_history(&mut info.history, team, quiet, -history_bonus(depth));
                 }
 
                 if let Some(previous) = previous {
-                    update_conthist(&mut info.conthist, team.next(), previous, team, act, depth * depth);
+                    update_conthist(&mut info.conthist, team.next(), previous, team, act, history_bonus(depth));
                     for &quiet in &quiets {
-                        update_conthist(&mut info.conthist, team.next(), previous, team, quiet, -depth * depth);
+                        update_conthist(&mut info.conthist, team.next(), previous, team, quiet, -history_bonus(depth));
                     }
                 }
 
                 if let Some(previous) = two_ply {
-                    update_conthist(&mut info.conthist, team, previous, team, act, depth * depth);
+                    update_conthist(&mut info.conthist, team, previous, team, act, history_bonus(depth));
                     for &quiet in &quiets {
-                        update_conthist(&mut info.conthist, team, previous, team, quiet, -depth * depth);
+                        update_conthist(&mut info.conthist, team, previous, team, quiet, -history_bonus(depth));
                     }
                 }
 
@@ -425,9 +425,9 @@ pub fn search<T: BitInt, const N: usize>(
                     info.killers[0][ply] = Some(act);
                 }
             } else {
-                update_history(&mut info.capture_history, team, act, depth * depth);
+                update_history(&mut info.capture_history, team, act, history_bonus(depth));
                 for &noisy in &noisies {
-                    update_history(&mut info.capture_history, team, noisy, -depth * depth);
+                    update_history(&mut info.capture_history, team, noisy, -history_bonus(depth));
                 }
             }
 

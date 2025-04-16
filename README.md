@@ -12,7 +12,8 @@ List of current features:
     - [Quiescence Search](https://www.chessprogramming.org/Quiescence_Search) (capture only)
     - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) cutoffs
     - [Principle Variation Search](https://www.chessprogramming.org/Principal_Variation_Search)
-    - [Late Move Reductions](https://www.chessprogramming.org/Late_Move_Reductions)
+    - [Late Move Reductions](https://www.chessprogramming.org/Late_Move_Reductions) 
+        - [Log LMR](https://www.chessprogramming.org/Late_Move_Reductions#Reduction_Depth)
         - [History LMR](https://www.chessprogramming.org/Late_Move_Reductions#Uncommon_Conditions)
     - [Late Move Pruning](https://www.chessprogramming.org/Futility_Pruning#MoveCountBasedPruning)
     - [Reverse Futility Pruning](https://www.chessprogramming.org/Reverse_Futility_Pruning)
