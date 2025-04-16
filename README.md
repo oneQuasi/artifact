@@ -25,8 +25,6 @@ List of current features:
         - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) ordering
         - [Killer Moves Heuristic](https://www.chessprogramming.org/Killer_Move)
 - Evaluation:
-    - [Stalemate](https://www.chessprogramming.org/Stalemate)
-    - [Checkmate](https://www.chessprogramming.org/Checkmate), prioritizes faster checkmates
     - [Material](https://www.chessprogramming.org/Material)
     - [Piece-Square Tables](https://www.chessprogramming.org/Piece-Square_Tables)
     - [Tapered Eval](https://www.chessprogramming.org/Tapered_Eval)
