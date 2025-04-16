@@ -53,13 +53,41 @@ fn set_or_push<T>(vec: &mut Vec<T>, index: usize, item: T) {
     }
 }
 
-fn is_noisy<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Action, opps: BitBoard<T>) -> bool {
-    if action.piece == 0 && action.info >= 3 {
-        // Pawn Promotion
+// Generalize "noisiness"
+// Checks if the amount of pieces of a given team/type are changed
+fn is_noisy_general<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Action) -> bool {
+    let white = board.state.white.count();
+    let black = board.state.black.count();
+    let pieces = board.state.pieces.map(|piece| piece.count());
+
+    let history = board.play(action);
+
+    if white != board.state.white.count() || black != board.state.black.count() {
+        board.restore(history);
         return true;
     }
 
-    return BitBoard::index(action.to).and(opps).is_set();
+    let new_pieces = board.state.pieces.map(|piece| piece.count());
+
+    board.restore(history);
+    new_pieces != pieces
+}
+
+// Chess-specific "noisiness"
+fn is_noisy_chess<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Action) -> bool {
+    if action.piece == 0 && action.info >= 1 {
+        // Pawn Promotion or En Passant
+        return true;
+    }
+
+    return BitBoard::index(action.to).and(board.state.opposite_team()).is_set();
+}
+
+fn is_noisy<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Action) -> bool {
+    // For chess, `is_noisy_chess` is idential to `is_noisy_general`
+    // However, for some variants this may not be the case
+    // is_noisy_general(board, action)
+    is_noisy_chess(board, action)
 }
 
 pub fn quiescence<T: BitInt, const N: usize>(
@@ -83,11 +111,10 @@ pub fn quiescence<T: BitInt, const N: usize>(
     let actions = board.list_actions();
     info.mobility[ply] = Some((actions.len(), board.state.moving_team));
 
-    let opps = board.state.opposite_team();
     let mut captures = Vec::with_capacity(actions.len());
 
     for act in actions {
-        if is_noisy(board, act, opps) {
+        if is_noisy(board, act) {
             captures.push(act);
         }
     }
@@ -266,7 +293,7 @@ pub fn search<T: BitInt, const N: usize>(
     
     info.hashes.push(hash);
 
-    let scored_actions = sort_actions(board, info, ply, opps, legal_actions, previous, two_ply, found_best_move);
+    let scored_actions = sort_actions(board, info, ply, legal_actions, previous, two_ply, found_best_move);
 
     let mut best = MIN;
     let mut best_move: Option<Action> = None;
@@ -277,7 +304,7 @@ pub fn search<T: BitInt, const N: usize>(
     let mut noisies: Vec<Action> = vec![];
 
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
-        let is_tactical = is_noisy(board, act, opps);
+        let is_tactical = is_noisy(board, act);
         let is_quiet = !is_tactical;
         let team = board.state.moving_team;
 

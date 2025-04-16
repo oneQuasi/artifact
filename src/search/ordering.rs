@@ -88,7 +88,6 @@ pub fn score<T: BitInt, const N: usize>(
     info: &mut SearchInfo,
     ply: usize,
     act: Action, 
-    opps: BitBoard<T>,
     previous: Option<Action>,
     two_ply: Option<Action>,
     found_best_move: Option<Action>
@@ -99,7 +98,7 @@ pub fn score<T: BitInt, const N: usize>(
         }
     }
     
-    if is_noisy(board, act, opps) {
+    if is_noisy(board, act) {
         return HIGH_PRIORITY + mvv_lva(board, act) + get_history(board, info, act, previous, two_ply, true);
     }
 
@@ -119,7 +118,6 @@ pub fn sort_actions<T: BitInt, const N: usize>(
     board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     ply: usize,
-    opps: BitBoard<T>,
     actions: Vec<Action>,
     previous: Option<Action>,
     two_ply: Option<Action>,
@@ -127,7 +125,7 @@ pub fn sort_actions<T: BitInt, const N: usize>(
 ) -> Vec<ScoredAction> {
     let mut scored = vec![];
     for act in actions {
-        scored.push(ScoredAction(act, score(board, info, ply, act, opps, previous, two_ply, found_best_move)))
+        scored.push(ScoredAction(act, score(board, info, ply, act, previous, two_ply, found_best_move)))
     }
 
     scored.sort_by(|a, b| b.1.cmp(&a.1));
