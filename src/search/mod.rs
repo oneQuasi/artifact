@@ -308,6 +308,10 @@ pub fn search<T: BitInt, const N: usize>(
         let is_quiet = !is_tactical;
         let team = board.state.moving_team;
 
+        if index > 3 + 2 * (depth * depth) as usize && is_quiet {
+            continue;
+        }
+
         let r = if index >= 3 {
             let mut r = if index >= 12 {
                 3
