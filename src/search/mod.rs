@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, i32, vec};
 
-use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{restore_perfectly, Action, ActionRecord, HistoryState}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
+use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{Action, ActionRecord}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
 use ordering::{get_history, mvv_lva, sort_actions, update_conthist, update_history, ContinuationHistory, History, ScoredAction, MAX_KILLERS};
 
 use crate::{eval::{eval, MATERIAL, ROOK}, util::current_time_millis};
@@ -53,22 +53,17 @@ fn set_or_push<T>(vec: &mut Vec<T>, index: usize, item: T) {
     }
 }
 
-fn is_noisy<T: BitInt>(board: &mut Board<T>, action: Action, opps: BitBoard<T>) -> bool {
+fn is_noisy<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Action, opps: BitBoard<T>) -> bool {
     if action.piece == 0 && action.info >= 3 {
         // Pawn Promotion
         return true;
     }
 
-    let to_idx = action.to as usize;
-    if board.state.mailbox[to_idx] == 0 {
-        return false;
-    }
-
     return BitBoard::index(action.to).and(opps).is_set();
 }
 
-pub fn quiescence<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn quiescence<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     ply: usize,
     mut alpha: i32, 
@@ -101,18 +96,18 @@ pub fn quiescence<T: BitInt>(
     });
 
     for act in captures {
-        let history = board.play(act);
-        let is_legal = board.game.processor.is_legal(board);
+        let state = board.play(act);
+        let is_legal = board.game.rules.is_legal(board);
 
         if !is_legal {
-            board.state.restore(history);
+            board.restore(state);
             continue;
         }
 
         info.nodes += 1;
 
         let score = -quiescence(board, info, ply + 1, -beta, -alpha);
-        board.state.restore(history);
+        board.restore(state);
 
         if score > best {
             best = score;
@@ -129,8 +124,8 @@ pub fn quiescence<T: BitInt>(
     best
 }
 
-fn zugzwang_unlikely<T: BitInt>(
-    board: &mut Board<T>
+fn zugzwang_unlikely<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>
 ) -> bool {
     let king = board.state.pieces[5];
     let pawns = board.state.pieces[0];
@@ -140,8 +135,8 @@ fn zugzwang_unlikely<T: BitInt>(
     
 }
 
-pub fn search<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn search<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     depth: i32,
     ply: usize,
@@ -167,7 +162,7 @@ pub fn search<T: BitInt>(
         }
     }
 
-    let hash = board.game.processor.hash(board, &info.zobrist);
+    let hash = board.game.rules.hash(board, &info.zobrist);
 
     if info.hashes.contains(&hash) && ply > 0 {
         return 0;
@@ -204,8 +199,8 @@ pub fn search<T: BitInt>(
 
     for action in actions {
         let history = board.play(action);
-        let is_legal = board.game.processor.is_legal(board);
-        board.state.restore(history);
+        let is_legal = board.game.rules.is_legal(board);
+        board.restore(history);
         if is_legal {
             legal_actions.push(action);
         }
@@ -228,34 +223,34 @@ pub fn search<T: BitInt>(
         }
     }
 
-    let two_ply = match board.state.history.get(board.state.history.len().wrapping_sub(2)) {
+    let two_ply = match board.history.get(board.history.len().wrapping_sub(2)) {
         Some(&ActionRecord::Action(action)) => Some(action),
         _ => None
     };
 
-    let previous = match board.state.history.last() {
+    let previous = match board.history.last() {
         Some(&ActionRecord::Action(action)) => Some(action),
         _ => None
     };
 
-    let null_last_move = match board.state.history.last() {
+    let null_last_move = match board.history.last() {
         Some(ActionRecord::Null()) => true,
         _ => false
     };
     
-    let history = board.play_null();
-    board.state.restore(history);
+    let state = board.play_null();
+    board.restore(state);
 
     if !is_pv && depth >= 3 && zugzwang_unlikely(board) && !null_last_move {
         let reduction = 3 + (depth / 5);
         let nm_depth = depth - reduction;
 
-        let history = board.play_null();
-        let is_legal = board.game.processor.is_legal(board);
+        let state = board.play_null();
+        let is_legal = board.game.rules.is_legal(board);
 
         if is_legal {
             let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1, is_pv);
-            board.state.restore(history);
+            board.restore(state);
     
             if null_score >= beta {
                 return if null_score > MAX / 2 {
@@ -265,7 +260,7 @@ pub fn search<T: BitInt>(
                 }
             }
         } else {
-            board.state.restore(history);
+            board.restore(state);
         }
     }
     
@@ -332,7 +327,7 @@ pub fn search<T: BitInt>(
             score = -search(board, info, new_depth, ply + 1, -beta, -alpha, is_pv);
         }
 
-        board.state.restore(history);
+        board.restore(history);
 
         if score > best {
             best = score;
@@ -433,7 +428,7 @@ pub fn search<T: BitInt>(
     best
 }
 
-pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
+pub fn create_search_info<T: BitInt, const N: usize>(board: &mut Board<T, N>) -> SearchInfo {
     let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
     let pieces = board.game.pieces.len() as usize;
 
@@ -447,7 +442,7 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
         hashes: vec![],
         killers: vec![],
         mobility: vec![ None; 100 ],
-        zobrist: board.game.processor.gen_zobrist(board, 64),
+        zobrist: board.game.rules.gen_zobrist(board, 64),
         tt_size: 1_000_000,
         tt: vec![ None; 1_000_000 ],
         nodes: 0,
@@ -457,7 +452,7 @@ pub fn create_search_info<T: BitInt>(board: &mut Board<T>) -> SearchInfo {
     }
 }
 
-pub fn aspiration<T: BitInt>(info: &mut SearchInfo, board: &mut Board<T>, depth: i32) -> i32 {
+pub fn aspiration<T: BitInt, const N: usize>(info: &mut SearchInfo, board: &mut Board<T, N>, depth: i32) -> i32 {
     let max_window_size = ROOK;
     let mut delta = 30;
     let (mut alpha, mut beta) = if depth >= 5 {
@@ -487,7 +482,7 @@ pub fn aspiration<T: BitInt>(info: &mut SearchInfo, board: &mut Board<T>, depth:
     }
 }
 
-pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &mut Board<T>, soft_time: u64, hard_time: u64) {
+pub fn iterative_deepening<T: BitInt, const N: usize>(uci: &Uci, info: &mut SearchInfo, board: &mut Board<T, N>, soft_time: u64, hard_time: u64) {
     let start = current_time_millis();
     info.time_to_abort = start + hard_time as u128;
     info.abort = false;
@@ -509,7 +504,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
 
         // PV Tables are still bugged, so temporarily disabling them.
         /*let history = restore_perfectly(board);
-        let past_moves = board.state.history.clone();
+        let past_moves = board.history.clone();
         let team = board.state.moving_team.clone();
 
         let mut pv_acts: Vec<String> = vec![];
@@ -526,7 +521,7 @@ pub fn iterative_deepening<T: BitInt>(uci: &Uci, info: &mut SearchInfo, board: &
         }
 
         board.state.restore(history);
-        board.state.history = past_moves;
+        board.history = past_moves;
         board.state.moving_team = team;*/
 
         let mut time = (current_time - start) as u64;

@@ -5,7 +5,7 @@ use crate::search::SearchInfo;
 
 mod psqt;
 
-pub fn team_to_move<T: BitInt>(board: &mut Board<T>) -> i32 {
+pub fn team_to_move<T: BitInt, const N: usize>(board: &mut Board<T, N>) -> i32 {
     match board.state.moving_team {
         Team::White => 1,
         Team::Black => -1
@@ -22,8 +22,8 @@ pub const MOBILITY: i32 = 3;
 
 pub const MATERIAL: [ i32; 6 ] = [ PAWN, KNIGHT, BISHOP, ROOK, QUEEN, 0 ];
 
-pub fn eval<T: BitInt>(
-    board: &mut Board<T>,
+pub fn eval<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>,
     info: &mut SearchInfo,
     ply: usize
 ) -> i32 {

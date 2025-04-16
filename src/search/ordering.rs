@@ -13,8 +13,8 @@ pub type ContinuationHistory = Vec<Vec<Vec<Vec<Vec<Vec<i32>>>>>>;
 #[derive(Clone, Debug, Copy)]
 pub struct ScoredAction(pub Action, pub i32);
 
-pub fn mvv_lva<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn mvv_lva<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     action: Action,
 ) -> i32 {
     let mut score = 1000;
@@ -23,16 +23,13 @@ pub fn mvv_lva<T: BitInt>(
         score += MATERIAL[(action.info - 2) as usize] - MATERIAL[0];
     }
 
-    let victim_mailbox = board.state.mailbox[action.to as usize];
+    if let Some(victim_type) = board.piece_at(action.to) {
+        if let Some(attacker_type) = board.piece_at(action.from) {
+            let attacker_value = MATERIAL[attacker_type as usize];
+            let victim_value = MATERIAL[victim_type as usize];
 
-    if victim_mailbox > 0 {
-        let attacker_type = board.state.mailbox[action.from as usize] - 1;
-        let victim_type = victim_mailbox - 1;
-
-        let attacker_value = MATERIAL[attacker_type as usize];
-        let victim_value = MATERIAL[victim_type as usize];
-
-        score += victim_value - attacker_value;
+            score += victim_value - attacker_value;
+        }
     }
 
     score
@@ -62,8 +59,8 @@ pub fn update_conthist(conthist: &mut ContinuationHistory, prio: Team, previous:
 pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
 pub const MAX_KILLERS: usize = 2;
 
-pub fn get_history<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn get_history<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     act: Action, 
     previous: Option<Action>,
@@ -86,8 +83,8 @@ pub fn get_history<T: BitInt>(
     }
 }
 
-pub fn score<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn score<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     ply: usize,
     act: Action, 
@@ -118,8 +115,8 @@ pub fn score<T: BitInt>(
     score
 }
 
-pub fn sort_actions<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn sort_actions<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     ply: usize,
     opps: BitBoard<T>,

@@ -11,7 +11,7 @@ fn main() {
     let uci = Uci { log: true };
     let stdin = io::stdin();
 
-    let chess = Chess::create::<u64>();
+    let chess = Chess::create::<u64, 6>();
     let mut board = chess.default();
 
     let mut info = create_search_info(&mut board);
@@ -87,7 +87,7 @@ fn main() {
                 info.hashes = vec![];
 
                 for act in moves {
-                    info.hashes.push(chess.processor.hash(&mut board, &info.zobrist));
+                    info.hashes.push(chess.rules.hash(&mut board, &info.zobrist));
                     board.play_action(&act);
                 }
             }

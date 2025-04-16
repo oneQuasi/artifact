@@ -5,5 +5,5 @@ config.json
 run.sh
 nonregression.sh
 superfast.sh
-perf.data
+perf.data*
 flamegraph.svg
