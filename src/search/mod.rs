@@ -313,13 +313,14 @@ pub fn search<T: BitInt, const N: usize>(
         }
 
         let r = if index >= 3 {
-            let mut r = if index >= 12 {
+            let mut r = if index >= 15 {
                 3
-            } else if index >= 6 {
+            } else if index >= 8 {
                 2
             } else {
                 1
             };
+            r += depth / 6;
 
             let history = get_history(board, info, act, previous, two_ply, is_tactical);
             r -= history.clamp(-600, 600) / 300;
