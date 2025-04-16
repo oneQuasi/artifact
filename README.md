@@ -13,6 +13,7 @@ List of current features:
     - [Transposition Table](https://www.chessprogramming.org/Transposition_Table) cutoffs
     - [Principle Variation Search](https://www.chessprogramming.org/Principal_Variation_Search)
     - [Late Move Reductions](https://www.chessprogramming.org/Late_Move_Reductions)
+        - [History LMR](https://www.chessprogramming.org/Late_Move_Reductions#Uncommon_Conditions)
     - [Late Move Pruning](https://www.chessprogramming.org/Futility_Pruning#MoveCountBasedPruning)
     - [Reverse Futility Pruning](https://www.chessprogramming.org/Reverse_Futility_Pruning)
     - [Futility Pruning](https://www.chessprogramming.org/Futility_Pruning)

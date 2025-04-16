@@ -304,29 +304,29 @@ pub fn search<T: BitInt, const N: usize>(
     let mut noisies: Vec<Action> = vec![];
 
     for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
-        let is_tactical = is_noisy(board, act);
-        let is_quiet = !is_tactical;
+        let is_noisy = is_noisy(board, act);
+        let is_quiet = !is_noisy;
         let team = board.state.moving_team;
 
         if index > 3 + 2 * (depth * depth) as usize && is_quiet {
             continue;
         }
 
-        let r = if index >= 3 {
-            let mut r = if index >= 15 {
-                3
-            } else if index >= 8 {
-                2
+        let r = if index >= 2 {
+            let mut r = if is_noisy {
+                let base = -0.25;
+                let divisor = 3.;
+                base + (depth as f64).ln() * (index as f64).ln() / divisor
             } else {
-                1
+                let base = 0.75;
+                let divisor = 2.5;
+                base + (depth as f64).ln() * (index as f64).ln() / divisor
             };
-            r += depth / 6;
 
-            let history = get_history(board, info, act, previous, two_ply, is_tactical);
-            r -= history.clamp(-600, 600) / 300;
+            let history = get_history(board, info, act, previous, two_ply, is_noisy);
+            r -= history.clamp(-600, 600) as f64 / 300.;
 
-            r = r.max(0);
-            r
+            (r as i32).max(0)
         } else {
             0
         };
