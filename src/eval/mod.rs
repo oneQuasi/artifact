@@ -22,6 +22,43 @@ pub const MOBILITY: i32 = 3;
 
 pub const MATERIAL: [ i32; 6 ] = [ PAWN, KNIGHT, BISHOP, ROOK, QUEEN, 0 ];
 
+// For use in training neural nets on new variants
+pub fn eval_primitive<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>,
+    info: &mut SearchInfo,
+    ply: usize
+) -> i32 {
+    let mut score = 0;
+
+    score += 100 * board.state.white.count() as i32;
+    score -= 100 * board.state.black.count() as i32;
+
+    let mut white_mobility = 0;
+    let mut black_mobility = 0;
+
+    for ply in (0..ply).rev() {
+        if white_mobility > 0 && black_mobility > 0 { break; }
+        match info.mobility[ply] {
+            Some((mobility, team)) => {
+                match team {
+                    Team::White => {
+                        if white_mobility == 0 { white_mobility = mobility };
+                    }
+                    Team::Black => {
+                        if black_mobility == 0 { black_mobility = mobility; }
+                    }
+                }
+            }
+            None => {}
+        }
+    } 
+
+    let mobility_bonus = MOBILITY * ((white_mobility as i32)  - (black_mobility as i32));
+    score += mobility_bonus;
+
+    score * team_to_move(board)
+}
+
 pub fn eval<T: BitInt, const N: usize>(
     board: &mut Board<T, N>,
     info: &mut SearchInfo,
@@ -117,7 +154,6 @@ pub fn eval<T: BitInt, const N: usize>(
     let mut white_mobility = 0;
     let mut black_mobility = 0;
 
-
     for ply in (0..ply).rev() {
         if white_mobility > 0 && black_mobility > 0 { break; }
         match info.mobility[ply] {
@@ -136,7 +172,6 @@ pub fn eval<T: BitInt, const N: usize>(
     } 
 
     let mobility_bonus = MOBILITY * ((white_mobility as i32)  - (black_mobility as i32));
-
     score += mobility_bonus;
 
     score * team_to_move(board)
