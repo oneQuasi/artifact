@@ -237,30 +237,6 @@ pub fn search<T: BitInt, const N: usize>(
     let actions = board.list_actions();
     info.mobility[ply] = Some((actions.len(), board.state.moving_team));
 
-    let mut legal_actions = Vec::with_capacity(actions.len());
-    for action in actions {
-        let history = board.play(action);
-        if board.game.rules.is_legal(board) {
-            legal_actions.push(action);
-        }
-        board.restore(history);
-    }
-
-    match board.game_state(&legal_actions) {
-        GameState::Win(Team::White) => {
-            return MIN + ply as i32;
-        }
-        GameState::Win(Team::Black) => {
-            return MIN + ply as i32;
-        }
-        GameState::Draw => {
-            return 0;
-        }
-        GameState::Ongoing => {
-            // continue evaluation
-        }
-    }
-
     let two_ply = match board.history.get(board.history.len().wrapping_sub(2)) {
         Some(&ActionRecord::Action(action)) => Some(action),
         _ => None
@@ -298,7 +274,7 @@ pub fn search<T: BitInt, const N: usize>(
     
     info.hashes.push(hash);
 
-    let scored_actions = sort_actions(board, info, ply, legal_actions, previous, two_ply, found_best_move);
+    let scored_actions = sort_actions(board, info, ply, actions.clone(), previous, two_ply, found_best_move);
 
     let mut best = MIN;
     let mut best_move: Option<Action> = None;
@@ -308,8 +284,23 @@ pub fn search<T: BitInt, const N: usize>(
 
     let mut quiets: Vec<Action> = vec![];
     let mut noisies: Vec<Action> = vec![];
+    let mut legals: Vec<Action> = vec![];
 
-    for (index, &ScoredAction(act, _)) in scored_actions.iter().enumerate() {
+    let mut legal_moves = 0;
+    for ScoredAction(act, _) in scored_actions {
+        let history = board.play(act);
+        let is_legal = board.game.rules.is_legal(board);
+        if !is_legal {
+            board.restore(history);
+            continue;
+        }
+
+        legals.push(act);
+        legal_moves += 1;
+        board.restore(history);
+
+        let index = legal_moves - 1;
+
         let is_noisy = is_noisy(board, act);
         let is_quiet = !is_noisy;
         let team = board.state.moving_team;
@@ -444,7 +435,25 @@ pub fn search<T: BitInt, const N: usize>(
             noisies.push(act);
         }
     }
-    
+
+    match board.game_state(&legals) {
+        GameState::Win(Team::White) => {
+            info.hashes.pop();
+            return MIN + ply as i32;
+        }
+        GameState::Win(Team::Black) => {
+            info.hashes.pop();
+            return MIN + ply as i32;
+        }
+        GameState::Draw => {
+            info.hashes.pop();
+            return 0;
+        }
+        GameState::Ongoing => {
+            // continue evaluation
+        }
+    }
+
     if info.abort { return 0; }
 
     if root_node && best_move.is_some() {
