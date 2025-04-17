@@ -236,15 +236,14 @@ pub fn search<T: BitInt, const N: usize>(
     let actions = board.list_actions();
     info.mobility[ply] = Some((actions.len(), board.state.moving_team));
 
-    let legal_actions: Vec<_> = actions
-        .into_iter()
-        .filter(|&action| {
-            let history = board.play(action);
-            let is_legal = board.game.rules.is_legal(board);
-            board.restore(history);
-            is_legal
-        })
-        .collect();
+    let mut legal_actions = Vec::with_capacity(actions.len());
+    for action in actions {
+        let history = board.play(action);
+        if board.game.rules.is_legal(board) {
+            legal_actions.push(action);
+        }
+        board.restore(history);
+    }
 
     match board.game_state(&legal_actions) {
         GameState::Win(Team::White) => {
