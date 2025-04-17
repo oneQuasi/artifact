@@ -13,8 +13,8 @@ pub type ContinuationHistory = Vec<Vec<Vec<Vec<Vec<Vec<i32>>>>>>;
 #[derive(Clone, Debug, Copy)]
 pub struct ScoredAction(pub Action, pub i32);
 
-pub fn mvv_lva<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn mvv_lva<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     action: Action,
 ) -> i32 {
     let mut score = 1000;
@@ -23,28 +23,32 @@ pub fn mvv_lva<T: BitInt>(
         score += MATERIAL[(action.info - 2) as usize] - MATERIAL[0];
     }
 
-    let victim_mailbox = board.state.mailbox[action.to as usize];
+    if let Some(victim_type) = board.piece_at(action.to) {
+        if let Some(attacker_type) = board.piece_at(action.from) {
+            let attacker_value = MATERIAL[attacker_type as usize];
+            let victim_value = MATERIAL[victim_type as usize];
 
-    if victim_mailbox > 0 {
-        let attacker_type = board.state.mailbox[action.from as usize] - 1;
-        let victim_type = victim_mailbox - 1;
-
-        let attacker_value = MATERIAL[attacker_type as usize];
-        let victim_value = MATERIAL[victim_type as usize];
-
-        score += victim_value - attacker_value;
+            score += victim_value - attacker_value;
+        }
     }
 
     score
 }   
 
+pub const MAX_HISTORY: i32 = 300;
+pub const MIN_HISTORY: i32 = -MAX_HISTORY;
+
+pub fn history_bonus(depth: i32) -> i32 {
+    depth * depth
+}
+
 pub fn update_history(history: &mut History, team: Team, action: Action, bonus: i32) {
     let from = action.from as usize;
     let to = action.to as usize;
-    let clamped_bonus = bonus.clamp(-300, 300);
+    let clamped_bonus = bonus.clamp(MIN_HISTORY, MAX_HISTORY);
 
     history[team.index()][from][to]
-        += clamped_bonus - history[team.index()][from][to] * clamped_bonus.abs() / 300;
+        += clamped_bonus - history[team.index()][from][to] * clamped_bonus.abs() / MAX_HISTORY;
 }
 
 pub fn update_conthist(conthist: &mut ContinuationHistory, prio: Team, previous: Action, team: Team, action: Action, bonus: i32) {
@@ -53,45 +57,49 @@ pub fn update_conthist(conthist: &mut ContinuationHistory, prio: Team, previous:
 
     let piece = action.piece as usize;
     let to = action.to as usize;
-    let clamped_bonus = bonus.clamp(-300, 300);
+    let clamped_bonus = bonus.clamp(MIN_HISTORY, MAX_HISTORY);
 
     conthist[prio.index()][prio_piece][prio_to][team.index()][piece][to]
-        += clamped_bonus - conthist[prio.index()][prio_piece][prio_to][team.index()][piece][to] * clamped_bonus.abs() / 300;
+        += clamped_bonus - conthist[prio.index()][prio_piece][prio_to][team.index()][piece][to] * clamped_bonus.abs() / MAX_HISTORY;
 }
 
 pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
 pub const MAX_KILLERS: usize = 2;
 
-pub fn get_history<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn get_history<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     act: Action, 
     previous: Option<Action>,
     two_ply: Option<Action>,
     noisy: bool
 ) -> i32 {
+    let to = act.to as usize;
+    let from = act.from as usize;
+    let piece = act.piece as usize;
+
     let team = board.state.moving_team;
+
     if noisy {
-        info.capture_history[team.index()][act.from as usize][act.to as usize]
+        info.capture_history[team.index()][from][to]
     } else {
-        let mut history = info.history[team.index()][act.from as usize][act.to as usize];
+        let mut history = info.history[team.index()][from][to];
         if let Some(previous) = previous {
-            history += info.conthist[team.next().index()][previous.piece as usize][previous.to as usize][team.index()][act.piece as usize][act.to as usize] / 2;
+            history += info.conthist[team.next().index()][previous.piece as usize][previous.to as usize][team.index()][piece][to] / 2;
         }
         if let Some(previous) = two_ply {
-            history += info.conthist[team.index()][previous.piece as usize][previous.to as usize][team.index()][act.piece as usize][act.to as usize] / 2;
+            history += info.conthist[team.index()][previous.piece as usize][previous.to as usize][team.index()][piece][to] / 2;
         }
 
         history
     }
 }
 
-pub fn score<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn score<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     ply: usize,
     act: Action, 
-    opps: BitBoard<T>,
     previous: Option<Action>,
     two_ply: Option<Action>,
     found_best_move: Option<Action>
@@ -102,7 +110,7 @@ pub fn score<T: BitInt>(
         }
     }
     
-    if is_noisy(board, act, opps) {
+    if is_noisy(board, act) {
         return HIGH_PRIORITY + mvv_lva(board, act) + get_history(board, info, act, previous, two_ply, true);
     }
 
@@ -118,11 +126,28 @@ pub fn score<T: BitInt>(
     score
 }
 
-pub fn sort_actions<T: BitInt>(
-    board: &mut Board<T>, 
+pub fn qs_score<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
+    info: &mut SearchInfo,
+    act: Action
+) -> i32 {
+    let mut score = 0;
+    let to = act.to as usize;
+    let from = act.from as usize;
+    let piece = act.piece as usize;
+
+    let team = board.state.moving_team;
+
+    score += mvv_lva(board, act);
+    score += info.capture_history[team.index()][from][to];
+
+    score
+}
+
+pub fn sort_actions<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
     info: &mut SearchInfo,
     ply: usize,
-    opps: BitBoard<T>,
     actions: Vec<Action>,
     previous: Option<Action>,
     two_ply: Option<Action>,
@@ -130,7 +155,22 @@ pub fn sort_actions<T: BitInt>(
 ) -> Vec<ScoredAction> {
     let mut scored = vec![];
     for act in actions {
-        scored.push(ScoredAction(act, score(board, info, ply, act, opps, previous, two_ply, found_best_move)))
+        scored.push(ScoredAction(act, score(board, info, ply, act, previous, two_ply, found_best_move)))
+    }
+
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
+
+    scored
+}
+
+pub fn sort_qs_actions<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
+    info: &mut SearchInfo,
+    actions: Vec<Action>
+) -> Vec<ScoredAction> {
+    let mut scored = vec![];
+    for act in actions {
+        scored.push(ScoredAction(act, mvv_lva(board, act)))
     }
 
     scored.sort_by(|a, b| b.1.cmp(&a.1));
