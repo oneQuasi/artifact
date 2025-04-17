@@ -537,17 +537,35 @@ pub fn aspiration<T: BitInt, const N: usize>(info: &mut SearchInfo, board: &mut 
         }
     }
 }
+pub enum SearchLimit {
+    Time { soft: u64, hard: u64 },
+    Depth(i32),
+}
 
-pub fn iterative_deepening<T: BitInt, const N: usize>(uci: &Uci, info: &mut SearchInfo, board: &mut Board<T, N>, soft_time: u64, hard_time: u64) {
+pub fn iterative_deepening<T: BitInt, const N: usize>(
+    uci: &Uci,
+    info: &mut SearchInfo,
+    board: &mut Board<T, N>,
+    limit: SearchLimit,
+    show_info: bool
+) {
     let start = current_time_millis();
-    info.time_to_abort = start + hard_time as u128;
     info.abort = false;
     info.nodes = 0;
-    info.killers = vec![ vec![ None; 100 ]; MAX_KILLERS ];
+    info.killers = vec![vec![None; 100]; MAX_KILLERS];
 
-    for depth in 1..100 {
+    let max_depth = match limit {
+        SearchLimit::Depth(d) => d,
+        _ => 100,
+    };
+
+    if let SearchLimit::Time { hard, .. } = limit {
+        info.time_to_abort = start + hard as u128;
+    }
+
+    for depth in 1..=max_depth {
         info.root_depth = depth;
-        info.pv_table = vec![ vec![]; 100 ];
+        info.pv_table = vec![vec![]; 100];
 
         let score = aspiration(info, board, depth);
         if info.abort {
@@ -557,44 +575,27 @@ pub fn iterative_deepening<T: BitInt, const N: usize>(uci: &Uci, info: &mut Sear
         info.score = score;
 
         let current_time = current_time_millis();
-
-        // PV Tables are still bugged, so temporarily disabling them.
-        /*let history = restore_perfectly(board);
-        let past_moves = board.history.clone();
-        let team = board.state.moving_team.clone();
-
-        let mut pv_acts: Vec<String> = vec![];
-        for act in info.pv_table[0].clone() {
-            if let ActionRecord::Action(act) = act {
-                if board.state.mailbox[act.from as usize] == 0 {
-                    // Invalid PV end early
-                    break;
-                }
-
-                pv_acts.push(board.display_uci_action(act));
-                board.play(act);
-            }
+        let mut time = (current_time - start) as u64;
+        if time == 0 {
+            time = 1;
         }
 
-        board.state.restore(history);
-        board.history = past_moves;
-        board.state.moving_team = team;*/
+        if show_info {
+            uci.info(Info {
+                depth: Some(depth as u32),
+                score_cp: Some(info.score),
+                time: Some(time),
+                nodes: Some(info.nodes),
+                nps: Some(info.nodes / time * 1000),
+                pv: info.best_move.map(|el| vec![board.display_uci_action(el)]),
+                ..Default::default()
+            });
+        }
 
-        let mut time = (current_time - start) as u64;
-        if time == 0 { time = 1; }
-
-        uci.info(Info {
-            depth: Some(depth as u32),
-            score_cp: Some(info.score),
-            time: Some(time),
-            nodes: Some(info.nodes),
-            nps: Some(info.nodes / time * 1000),
-            pv: info.best_move.map(|el| vec![ board.display_uci_action(el) ]), //Some(pv_acts),
-            ..Default::default()
-        });
-
-        if time > soft_time {
-            break;   
+        if let SearchLimit::Time { soft, .. } = limit {
+            if time > soft {
+                break;
+            }
         }
     }
 }

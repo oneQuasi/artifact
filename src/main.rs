@@ -2,6 +2,7 @@ use std::{io, process, thread, time::Duration};
 
 use chessing::{chess::Chess, game::{GameTemplate, Team}, uci::{parse::{GoOption, UciCommand, UciPosition}, respond::Info, Uci}};
 use search::{create_search_info, iterative_deepening, search, SearchInfo};
+use util::{current_time_millis, BENCH};
 
 mod search;
 mod util;
@@ -62,7 +63,7 @@ fn main() {
                     soft_time = 300;
                 }
 
-                iterative_deepening(&uci, &mut info, &mut board, soft_time, hard_time);
+                iterative_deepening(&uci, &mut info, &mut board, search::SearchLimit::Time { soft: soft_time, hard: hard_time }, true);
 
                 let action = info.best_move.expect("There's a best move, right?");
                 let action_display = board.display_uci_action(action);
@@ -70,6 +71,23 @@ fn main() {
                 uci.bestmove(&action_display);
 
                 info.best_move = None;
+            }
+            UciCommand::Bench() => {
+                let depth = 9;
+                let mut total_nodes = 0;
+                let start = current_time_millis();
+                for (ind, pos) in BENCH.iter().enumerate() {
+                    info = create_search_info(&mut board);
+                    let mut board = chess.load(&pos);
+
+                    iterative_deepening(&uci, &mut info, &mut board, search::SearchLimit::Depth(depth), false);
+                    println!("[{}] NODES: {} | BEST: {}", ind, info.nodes, board.display_uci_action(info.best_move.expect("Must have a best move")));
+
+                    total_nodes += info.nodes;
+                }
+                let end = current_time_millis();
+                let time = (end - start) as u64;
+                println!("[#] NODES: {} | TIME: {}ms | NPS: {}", total_nodes, time, total_nodes / time * 1000)
             }
             UciCommand::IsReady() => {
                 uci.readyok();
