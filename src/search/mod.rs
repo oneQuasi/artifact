@@ -288,26 +288,12 @@ pub fn search<T: BitInt, const N: usize>(
 
     let mut legal_moves = 0;
     for ScoredAction(act, _) in scored_actions {
-        let history = board.play(act);
-        let is_legal = board.game.rules.is_legal(board);
-        if !is_legal {
-            board.restore(history);
-            continue;
-        }
-
-        legals.push(act);
         legal_moves += 1;
-        board.restore(history);
-
         let index = legal_moves - 1;
 
         let is_noisy = is_noisy(board, act);
         let is_quiet = !is_noisy;
         let team = board.state.moving_team;
-
-        if index > 3 + 2 * (depth * depth) as usize && is_quiet {
-            continue;
-        }
 
         let r = if index >= 2 {
             let mut r = if is_noisy {
@@ -326,12 +312,26 @@ pub fn search<T: BitInt, const N: usize>(
             0
         };
         let lmr = r > 0;
-        
-        if !root_node && is_quiet && (depth - r) <= 8 && eval + 300 + (75 * depth) <= alpha {
+
+        let history = board.play(act);
+        let is_legal = board.game.rules.is_legal(board);
+        if !is_legal {
+            legal_moves -= 1;
+            board.restore(history);
             continue;
         }
 
-        let history = board.play(act);
+        legals.push(act);
+
+        if index > 3 + 2 * (depth * depth) as usize && is_quiet {
+            board.restore(history);
+            continue;
+        }
+        
+        if !root_node && is_quiet && (depth - r) <= 8 && eval + 300 + (75 * depth) <= alpha {
+            board.restore(history);
+            continue;
+        }
 
         info.nodes += 1;
 
