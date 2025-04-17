@@ -32,6 +32,8 @@ pub struct SearchInfo {
     pub killers: Vec<Vec<Option<Action>>>,
     pub pv_table: Vec<Vec<ActionRecord>>,
     pub zobrist: ZobristTable,
+    pub quiet_lmr: Vec<Vec<i32>>,
+    pub noisy_lmr: Vec<Vec<i32>>,
     pub hashes: Vec<u64>,
     pub mobility: Vec<Option<(usize, Team)>>,
     pub tt: Vec<Option<TtEntry>>,
@@ -308,17 +310,15 @@ pub fn search<T: BitInt, const N: usize>(
 
         let r = if index >= 2 {
             let mut r = if is_noisy {
-                let base = -0.25;
-                let divisor = 3.;
-                base + (depth as f64).ln() * (index as f64).ln() / divisor
+                info.noisy_lmr[index][depth as usize]
             } else {
-                let base = 0.75;
-                let divisor = 2.5;
-                base + (depth as f64).ln() * (index as f64).ln() / divisor
+                info.quiet_lmr[index][depth as usize]
             };
 
             let history = get_history(board, info, act, previous, two_ply, is_noisy);
-            r -= history.clamp(-512, 512) as f64 / 256.;
+            r -= history.clamp(-512, 512);
+
+            r /= 256;
 
             (r as i32).max(0)
         } else {
@@ -458,12 +458,14 @@ pub fn create_search_info<T: BitInt, const N: usize>(board: &mut Board<T, N>) ->
     let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
     let pieces = board.game.pieces.len() as usize;
 
-    SearchInfo {
+    let mut info = SearchInfo {
         root_depth: 0,
         best_move: None,
         capture_history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         history: vec![ vec![ vec![ 0; squares ]; squares ]; 2 ],
         conthist: vec![ vec![ vec![ vec![ vec![ vec![ 0; squares ]; pieces ]; 2 ]; squares ]; pieces ]; 2 ],
+        quiet_lmr: vec![ vec![ 0; 100 ]; 256 ],
+        noisy_lmr: vec![ vec![ 0; 100 ]; 256 ],
         pv_table: vec![],
         hashes: vec![],
         killers: vec![],
@@ -475,7 +477,21 @@ pub fn create_search_info<T: BitInt, const N: usize>(board: &mut Board<T, N>) ->
         score: 0,
         abort: false,
         time_to_abort: u128::MAX
+    };
+
+    fn compute_lmr(base: f64, divisor: f64, index: usize, depth: usize) -> i32 {
+        let r = base + (depth as f64).ln() * (index as f64).ln() / divisor;
+        (r * 256.) as i32
     }
+
+    for index in 0..256 {
+        for depth in 0..100 {
+            info.noisy_lmr[index][depth] = compute_lmr(-0.25, 3., index, depth);
+            info.quiet_lmr[index][depth] = compute_lmr(0.75, 2.5, index, depth);
+        }
+    }    
+
+    info
 }
 
 pub fn aspiration<T: BitInt, const N: usize>(info: &mut SearchInfo, board: &mut Board<T, N>, depth: i32) -> i32 {
