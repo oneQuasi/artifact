@@ -295,6 +295,7 @@ pub fn search<T: BitInt, const N: usize>(
     let mut best_move: Option<Action> = None;
 
     let mut bounds = Bounds::Upper; // ALL-node: no move exceeded alpha
+    let root_node = depth == info.root_depth;
 
     let mut quiets: Vec<Action> = vec![];
     let mut noisies: Vec<Action> = vec![];
@@ -326,7 +327,7 @@ pub fn search<T: BitInt, const N: usize>(
         };
         let lmr = r > 0;
         
-        if depth != info.root_depth && is_quiet && (depth - r) <= 8 && eval + 300 + (75 * depth) <= alpha {
+        if !root_node && is_quiet && (depth - r) <= 8 && eval + 300 + (75 * depth) <= alpha {
             continue;
         }
 
@@ -437,7 +438,7 @@ pub fn search<T: BitInt, const N: usize>(
     
     if info.abort { return 0; }
 
-    if depth == info.root_depth && best_move.is_some() {
+    if root_node && best_move.is_some() {
         info.best_move = best_move;
     }
 
