@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, i32, vec};
 
 use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{Action, ActionRecord}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
-use ordering::{get_history, history_bonus, mvv_lva, sort_actions, update_conthist, update_history, ContinuationHistory, History, ScoredAction, MAX_KILLERS};
+use ordering::{get_history, history_bonus, mvv_lva, sort_actions, sort_qs_actions, update_conthist, update_history, ContinuationHistory, History, ScoredAction, MAX_KILLERS};
 
 use crate::{eval::{eval, MATERIAL, ROOK}, util::current_time_millis};
 
@@ -120,11 +120,10 @@ pub fn quiescence<T: BitInt, const N: usize>(
             captures.push(act);
         }
     }
-    captures.sort_by(|&a, &b| {
-        mvv_lva(board, b).cmp(&mvv_lva(board, a))
-    });
+    
+    let scored_captures = sort_qs_actions(board, info, captures);
 
-    for act in captures {
+    for ScoredAction(act, _) in scored_captures {
         let state = board.play(act);
         let is_legal = board.game.rules.is_legal(board);
 

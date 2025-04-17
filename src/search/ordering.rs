@@ -126,6 +126,24 @@ pub fn score<T: BitInt, const N: usize>(
     score
 }
 
+pub fn qs_score<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
+    info: &mut SearchInfo,
+    act: Action
+) -> i32 {
+    let mut score = 0;
+    let to = act.to as usize;
+    let from = act.from as usize;
+    let piece = act.piece as usize;
+
+    let team = board.state.moving_team;
+
+    score += mvv_lva(board, act);
+    score += info.capture_history[team.index()][from][to];
+
+    score
+}
+
 pub fn sort_actions<T: BitInt, const N: usize>(
     board: &mut Board<T, N>, 
     info: &mut SearchInfo,
@@ -138,6 +156,21 @@ pub fn sort_actions<T: BitInt, const N: usize>(
     let mut scored = vec![];
     for act in actions {
         scored.push(ScoredAction(act, score(board, info, ply, act, previous, two_ply, found_best_move)))
+    }
+
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
+
+    scored
+}
+
+pub fn sort_qs_actions<T: BitInt, const N: usize>(
+    board: &mut Board<T, N>, 
+    info: &mut SearchInfo,
+    actions: Vec<Action>
+) -> Vec<ScoredAction> {
+    let mut scored = vec![];
+    for act in actions {
+        scored.push(ScoredAction(act, mvv_lva(board, act)))
     }
 
     scored.sort_by(|a, b| b.1.cmp(&a.1));
