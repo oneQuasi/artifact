@@ -77,7 +77,7 @@ fn main() {
                 let mut total_nodes = 0;
                 let start = current_time_millis();
                 for (ind, pos) in BENCH.iter().enumerate() {
-                    info = create_search_info(&mut board);
+                    info.nodes = 0;
                     let mut board = chess.load(&pos);
 
                     iterative_deepening(&uci, &mut info, &mut board, search::SearchLimit::Depth(depth), false);
