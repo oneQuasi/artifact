@@ -191,6 +191,7 @@ pub fn search<T: BitInt, const N: usize>(
 
     let eval = eval(board, info, ply);
 
+    info.plies[ply] = PlyInfo { eval };
     let improving = if ply >= 2 {
         eval > info.plies[ply - 2].eval
     } else {
