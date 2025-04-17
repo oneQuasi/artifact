@@ -23,6 +23,11 @@ pub struct TtEntry {
     pub bounds: Bounds
 }
 
+#[derive(Clone)]
+pub struct PlyInfo {
+    pub eval: i32
+}
+
 pub struct SearchInfo {
     pub root_depth: i32,
     pub best_move: Option<Action>,
@@ -31,6 +36,7 @@ pub struct SearchInfo {
     pub conthist: ContinuationHistory,
     pub killers: Vec<Vec<Option<Action>>>,
     pub pv_table: Vec<Vec<ActionRecord>>,
+    pub plies: Vec<PlyInfo>,
     pub zobrist: ZobristTable,
     pub quiet_lmr: Vec<Vec<i32>>,
     pub noisy_lmr: Vec<Vec<i32>>,
@@ -184,6 +190,13 @@ pub fn search<T: BitInt, const N: usize>(
     }
 
     let eval = eval(board, info, ply);
+
+    let improving = if ply >= 2 {
+        eval > info.plies[ply - 2].eval
+    } else {
+        false
+    };
+
     if !is_pv && depth <= 3 {
         if eval - (100 * depth) >= beta {
             return eval;
@@ -466,6 +479,7 @@ pub fn create_search_info<T: BitInt, const N: usize>(board: &mut Board<T, N>) ->
         conthist: vec![ vec![ vec![ vec![ vec![ vec![ 0; squares ]; pieces ]; 2 ]; squares ]; pieces ]; 2 ],
         quiet_lmr: vec![ vec![ 0; 100 ]; 256 ],
         noisy_lmr: vec![ vec![ 0; 100 ]; 256 ],
+        plies: vec![ PlyInfo { eval: 0 }; 100 ],
         pv_table: vec![],
         hashes: vec![],
         killers: vec![],
