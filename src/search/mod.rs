@@ -272,9 +272,6 @@ pub fn search<T: BitInt, const N: usize>(
     };
 
     let null_last_move = matches!(board.history.last(), Some(ActionRecord::Null()));
-    
-    let state = board.play_null();
-    board.restore(state);
 
     if !is_pv && depth >= 3 && zugzwang_unlikely(board) && !null_last_move {
         let reduction = 3 + (depth / 5);
