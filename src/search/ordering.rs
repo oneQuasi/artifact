@@ -153,7 +153,7 @@ pub fn sort_actions<T: BitInt, const N: usize>(
     two_ply: Option<Action>,
     found_best_move: Option<Action>
 ) -> Vec<ScoredAction> {
-    let mut scored = vec![];
+    let mut scored = Vec::with_capacity(actions.len());
     for act in actions {
         scored.push(ScoredAction(act, score(board, info, ply, act, previous, two_ply, found_best_move)))
     }
