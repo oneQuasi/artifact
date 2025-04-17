@@ -318,7 +318,7 @@ pub fn search<T: BitInt, const N: usize>(
             };
 
             let history = get_history(board, info, act, previous, two_ply, is_noisy);
-            r -= history.clamp(-600, 600) as f64 / 300.;
+            r -= history.clamp(-512, 512) as f64 / 256.;
 
             (r as i32).max(0)
         } else {
