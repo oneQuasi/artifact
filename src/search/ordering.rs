@@ -168,7 +168,7 @@ pub fn sort_qs_actions<T: BitInt, const N: usize>(
     info: &mut SearchInfo,
     actions: Vec<Action>
 ) -> Vec<ScoredAction> {
-    let mut scored = vec![];
+    let mut scored = Vec::with_capacity(actions.len());
     for act in actions {
         scored.push(ScoredAction(act, mvv_lva(board, act)))
     }
