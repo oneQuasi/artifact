@@ -508,8 +508,8 @@ pub fn create_search_info<T: BitInt, const N: usize>(board: &mut Board<T, N>) ->
 
     for index in 0..256 {
         for depth in 0..100 {
-            info.noisy_lmr[index][depth] = compute_lmr(-0.25, 3., index, depth);
-            info.quiet_lmr[index][depth] = compute_lmr(0.75, 2.5, index, depth);
+            info.noisy_lmr[index][depth] = compute_lmr(-0.25, 2.75, index, depth);
+            info.quiet_lmr[index][depth] = compute_lmr(0.75, 2.25, index, depth);
         }
     }    
 

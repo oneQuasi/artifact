@@ -12,7 +12,7 @@ pub fn team_to_move<T: BitInt, const N: usize>(board: &mut Board<T, N>) -> i32 {
     }
 }
 
-pub const MOBILITY: i32 = 3;
+pub const MOBILITY: i32 = 2;
 
 pub const MATERIAL: [ i32; 6 ] = MG_MATERIAL;
 
@@ -55,7 +55,7 @@ pub fn eval_primitive<T: BitInt, const N: usize>(
     score += 100 * board.state.white.count() as i32;
     score -= 100 * board.state.black.count() as i32;
 
-    let mobility_bonus = MOBILITY * get_mobility_diff(board, info, ply);
+    let mobility_bonus = get_mobility_diff(board, info, ply) * MOBILITY;
     score += mobility_bonus;
 
     score * team_to_move(board)
