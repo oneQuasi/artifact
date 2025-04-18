@@ -161,3 +161,13 @@ pub const BISHOP_EG_WHITE: [i32; 64] = flip(BISHOP_EG);
 pub const ROOK_EG_WHITE: [i32; 64] = flip(ROOK_EG);
 pub const QUEEN_EG_WHITE: [i32; 64] = flip(QUEEN_EG);
 pub const KING_EG_WHITE: [i32; 64] = flip(KING_EG);
+
+pub const MG_MATERIAL: [ i32; 6 ] = [ 82, 337, 365, 477, 1025, 0 ];
+pub const EG_MATERIAL: [ i32; 6 ] = [ 94, 281, 297, 512,  936, 0 ];
+
+pub const MG_PSQT_BLACK: [[i32; 64]; 6] = [ PAWN_MG, KNIGHT_MG, BISHOP_MG, ROOK_MG, QUEEN_MG, KING_MG ];
+pub const EG_PSQT_BLACK: [[i32; 64]; 6] = [ PAWN_EG, KNIGHT_EG, BISHOP_EG, ROOK_EG, QUEEN_EG, KING_EG ];
+pub const MG_PSQT_WHITE: [[i32; 64]; 6] = [ PAWN_MG_WHITE, KNIGHT_MG_WHITE, BISHOP_MG_WHITE, ROOK_MG_WHITE, QUEEN_MG_WHITE, KING_MG_WHITE ];
+pub const EG_PSQT_WHITE: [[i32; 64]; 6] = [ PAWN_EG_WHITE, KNIGHT_EG_WHITE, BISHOP_EG_WHITE, ROOK_EG_WHITE, QUEEN_EG_WHITE, KING_EG_WHITE ];
+
+pub const PHASE_VALUE: [ i32; 6 ] = [ 0, 1, 1, 2, 4, 0 ];

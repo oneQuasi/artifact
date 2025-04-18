@@ -3,7 +3,9 @@ use std::{cmp::Ordering, i32, vec};
 use chessing::{bitboard::{BitBoard, BitInt}, game::{action::{Action, ActionRecord}, zobrist::ZobristTable, Board, GameState, Team}, uci::{respond::Info, Uci}};
 use ordering::{get_history, history_bonus, mvv_lva, sort_actions, sort_qs_actions, update_conthist, update_history, ContinuationHistory, History, ScoredAction, MAX_KILLERS};
 
-use crate::{eval::{eval, MATERIAL, ROOK}, util::current_time_millis};
+use crate::{eval::{eval, MATERIAL}, util::current_time_millis};
+
+pub const ROOK: i32 = MATERIAL[3];
 
 mod ordering;
 
