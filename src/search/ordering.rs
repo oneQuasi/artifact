@@ -77,20 +77,22 @@ pub fn get_history<T: BitInt, const N: usize>(
     let to = act.to as usize;
     let from = act.from as usize;
     let piece = act.piece as usize;
-
-    let team = board.state.moving_team;
+    let team = board.state.moving_team.index();
+    let opp_team = board.state.moving_team.next().index();
 
     if noisy {
-        info.capture_history[team.index()][from][to]
+        info.capture_history[team][from][to]
     } else {
-        let mut history = info.history[team.index()][from][to];
-        if let Some(previous) = previous {
-            history += info.conthist[team.next().index()][previous.piece as usize][previous.to as usize][team.index()][piece][to] / 2;
-        }
-        if let Some(previous) = two_ply {
-            history += info.conthist[team.index()][previous.piece as usize][previous.to as usize][team.index()][piece][to] / 2;
-        }
+        let mut history = info.history[team][from][to];
 
+        if let Some(previous) = previous {
+            history += info.conthist[opp_team][previous.piece as usize][previous.to as usize][team][piece][to] / 2;
+        }
+    
+        if let Some(previous) = two_ply {
+            history += info.conthist[team][previous.piece as usize][previous.to as usize][team][piece][to] / 2;
+        }
+    
         history
     }
 }
@@ -158,7 +160,7 @@ pub fn sort_actions<T: BitInt, const N: usize>(
         scored.push(ScoredAction(act, score(board, info, ply, act, previous, two_ply, found_best_move)))
     }
 
-    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    scored.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
     scored
 }
@@ -173,7 +175,7 @@ pub fn sort_qs_actions<T: BitInt, const N: usize>(
         scored.push(ScoredAction(act, mvv_lva(board, act)))
     }
 
-    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    scored.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
     scored
 }
