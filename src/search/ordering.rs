@@ -166,7 +166,7 @@ pub fn sort_actions<T: BitInt, const N: usize>(
         scored.push(ScoredAction(act, score(board, info, ply, act, previous, two_ply, found_best_move)))
     }
 
-    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    scored.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
     scored
 }
@@ -181,7 +181,7 @@ pub fn sort_qs_actions<T: BitInt, const N: usize>(
         scored.push(ScoredAction(act, mvv_lva(board, act)))
     }
 
-    scored.sort_by(|a, b| b.1.cmp(&a.1));
+    scored.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
     scored
 }
