@@ -66,6 +66,7 @@ pub fn update_conthist(conthist: &mut ContinuationHistory, prio: Team, previous:
 pub const HIGH_PRIORITY: i32 = 2i32.pow(28);
 pub const MAX_KILLERS: usize = 2;
 
+#[inline(always)]
 pub fn get_history<T: BitInt, const N: usize>(
     board: &mut Board<T, N>, 
     info: &mut SearchInfo,
@@ -87,14 +88,14 @@ pub fn get_history<T: BitInt, const N: usize>(
 
         let one_ply_conthist = match previous {
             Some(previous) => {
-                info.conthist[opp_team][previous.piece as usize][previous.to as usize][team][piece][to] / 2
+                info.conthist[opp_team][previous.piece as usize][previous.to as usize][team][piece][to]
             }
             _ => 0
         };
     
         let two_ply_conthist = match two_ply {
             Some(previous) => {
-                info.conthist[team][previous.piece as usize][previous.to as usize][team][piece][to] / 2
+                info.conthist[team][previous.piece as usize][previous.to as usize][team][piece][to]
             }
             _ => 0
         };
