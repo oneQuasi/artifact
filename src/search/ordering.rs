@@ -83,17 +83,23 @@ pub fn get_history<T: BitInt, const N: usize>(
     if noisy {
         info.capture_history[team][from][to]
     } else {
-        let mut history = info.history[team][from][to];
+        let history = info.history[team][from][to];
 
-        if let Some(previous) = previous {
-            history += info.conthist[opp_team][previous.piece as usize][previous.to as usize][team][piece][to] / 2;
-        }
+        let one_ply_conthist = match previous {
+            Some(previous) => {
+                info.conthist[opp_team][previous.piece as usize][previous.to as usize][team][piece][to] / 2
+            }
+            _ => 0
+        };
     
-        if let Some(previous) = two_ply {
-            history += info.conthist[team][previous.piece as usize][previous.to as usize][team][piece][to] / 2;
-        }
+        let two_ply_conthist = match two_ply {
+            Some(previous) => {
+                info.conthist[team][previous.piece as usize][previous.to as usize][team][piece][to] / 2
+            }
+            _ => 0
+        };
     
-        history
+        history + one_ply_conthist + two_ply_conthist
     }
 }
 
@@ -160,7 +166,7 @@ pub fn sort_actions<T: BitInt, const N: usize>(
         scored.push(ScoredAction(act, score(board, info, ply, act, previous, two_ply, found_best_move)))
     }
 
-    scored.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
 
     scored
 }
@@ -175,7 +181,7 @@ pub fn sort_qs_actions<T: BitInt, const N: usize>(
         scored.push(ScoredAction(act, mvv_lva(board, act)))
     }
 
-    scored.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+    scored.sort_by(|a, b| b.1.cmp(&a.1));
 
     scored
 }
