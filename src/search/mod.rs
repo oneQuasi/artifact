@@ -63,12 +63,12 @@ fn set_or_push<T>(vec: &mut Vec<T>, index: usize, item: T) {
 
 // Generalize "noisiness"
 // Checks if the amount of pieces of a given team/type are changed
-fn is_noisy_general<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Action) -> bool {
+fn is_noisy_general<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: &Action) -> bool {
     let white = board.state.white.count();
     let black = board.state.black.count();
     let pieces = board.state.pieces.map(|piece| piece.count());
 
-    let history = board.play(action);
+    let history = board.play(*action);
 
     if white != board.state.white.count() || black != board.state.black.count() {
         board.restore(history);
@@ -82,7 +82,7 @@ fn is_noisy_general<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: 
 }
 
 // Chess-specific "noisiness"
-fn is_noisy_chess<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Action) -> bool {
+fn is_noisy_chess<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: &Action) -> bool {
     if action.piece == 0 && action.info >= 1 {
         // Pawn Promotion or En Passant
         return true;
@@ -91,7 +91,7 @@ fn is_noisy_chess<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Ac
     return BitBoard::index(action.to).and(board.state.opposite_team()).is_set();
 }
 
-fn is_noisy<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: Action) -> bool {
+fn is_noisy<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: &Action) -> bool {
     // For chess, `is_noisy_chess` is idential to `is_noisy_general`
     // However, for some variants this may not be the case
     // is_noisy_general(board, action)
@@ -122,7 +122,7 @@ pub fn quiescence<T: BitInt, const N: usize>(
     let mut captures = Vec::with_capacity(actions.len());
 
     for act in actions {
-        if is_noisy(board, act) {
+        if is_noisy(board, &act) {
             captures.push(act);
         }
     }
@@ -291,7 +291,7 @@ pub fn search<T: BitInt, const N: usize>(
         legal_moves += 1;
         let index = legal_moves - 1;
 
-        let is_noisy = is_noisy(board, act);
+        let is_noisy = is_noisy(board, &act);
         let is_quiet = !is_noisy;
         let team = board.state.moving_team;
 
@@ -302,7 +302,7 @@ pub fn search<T: BitInt, const N: usize>(
                 info.quiet_lmr[index][depth as usize]
             };
 
-            let history = get_history(board, info, act, previous, two_ply, is_noisy);
+            let history = get_history(board, info, &act, &previous, &two_ply, is_noisy);
             r -= history.clamp(-512, 512);
 
             r /= 256;
