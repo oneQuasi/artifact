@@ -37,7 +37,6 @@ pub struct SearchInfo {
     pub capture_history: History,
     pub conthist: ContinuationHistory,
     pub killers: Vec<Vec<Option<Action>>>,
-    pub pv_table: Vec<Vec<ActionRecord>>,
     pub plies: Vec<PlyInfo>,
     pub zobrist: ZobristTable,
     pub quiet_lmr: Vec<Vec<i32>>,
@@ -185,7 +184,6 @@ pub fn search<T: BitInt, const N: usize>(
     }
 
     if info.abort { return 0; }
-    //info.pv_table[ply] = vec![];
 
     if depth <= 0 {
         return quiescence(board, info, ply, alpha, beta);
@@ -364,29 +362,6 @@ pub fn search<T: BitInt, const N: usize>(
             if score > alpha {
                 bounds = Bounds::Exact; // PV-node: move exceeded alpha but not beta
                 alpha = score;
-
-                if is_pv {
-                    let ply = ply as usize;
-
-                    match info.pv_table.get((ply + 1) as usize) {
-                        Some(pv_moves) => {
-                            for (i, pv) in pv_moves.clone().iter().enumerate() {
-                                match pv {
-                                    ActionRecord::Null() => {
-                                        set_or_push(&mut info.pv_table[ply], i + 1, ActionRecord::Null());
-                                        break;
-                                    }
-                                    &ActionRecord::Action(act) => {
-                                        set_or_push(&mut info.pv_table[ply], i + 1, ActionRecord::Action(act));
-                                    }
-                                }
-                            }
-                        }
-                        None => {}
-                    }
-
-                    set_or_push(&mut info.pv_table[ply], 0, ActionRecord::Action(act));
-                }
             }
         }
 
@@ -488,7 +463,6 @@ pub fn create_search_info<T: BitInt, const N: usize>(board: &mut Board<T, N>) ->
         quiet_lmr: vec![ vec![ 0; 100 ]; 256 ],
         noisy_lmr: vec![ vec![ 0; 100 ]; 256 ],
         plies: vec![ PlyInfo { eval: 0 }; 100 ],
-        pv_table: vec![],
         hashes: vec![],
         killers: vec![],
         mobility: vec![ None; 100 ],
@@ -573,8 +547,7 @@ pub fn iterative_deepening<T: BitInt, const N: usize>(
 
     for depth in 1..=max_depth {
         info.root_depth = depth;
-        info.pv_table = vec![vec![]; 100];
-
+        
         let score = aspiration(info, board, depth);
         if info.abort {
             break;
@@ -595,7 +568,7 @@ pub fn iterative_deepening<T: BitInt, const N: usize>(
                 time: Some(time),
                 nodes: Some(info.nodes),
                 nps: Some(info.nodes / time * 1000),
-                pv: info.best_move.map(|el| vec![board.display_uci_action(el)]),
+                pv: info.best_move.map(|el| vec![ board.display_uci_action(el) ]),
                 ..Default::default()
             });
         }
