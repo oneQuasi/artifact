@@ -303,7 +303,7 @@ pub fn search<T: BitInt, const N: usize>(
             };
 
             let history = get_history(board, info, &act, &previous, &two_ply, is_noisy);
-            r -= history.clamp(-512, 512);
+            r -= history;
 
             r /= 256;
 
