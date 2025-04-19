@@ -150,7 +150,7 @@ pub fn score<T: BitInt, const N: usize>(
     for i in 0..MAX_KILLERS {
         let killer = info.killers[i][ply];
         if killer == Some(*act) {
-            score += 100 - (50 * (i as i32));
+            score += 100 / ((i + 1) as i32);
         }
     }
 
