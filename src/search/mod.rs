@@ -259,7 +259,7 @@ pub fn search<T: BitInt, const N: usize>(
         let is_legal = board.game.rules.is_legal(board);
 
         if is_legal {
-            let null_score = -search(board, info, nm_depth, ply, -beta, -beta + 1, is_pv);
+            let null_score = -search(board, info, nm_depth, ply + 1, -beta, -beta + 1, is_pv);
             board.restore(state);
     
             if null_score >= beta {
