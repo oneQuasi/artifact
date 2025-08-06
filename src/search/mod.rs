@@ -89,7 +89,7 @@ fn is_noisy_chess<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: &A
         return true;
     }
 
-    return BitBoard::index(action.to).and(board.state.opposite_team()).is_set();
+    return BitBoard::index(action.to).and(board.state.opposite_team()).set();
 }
 
 fn is_noisy<T: BitInt, const N: usize>(board: &mut Board<T, N>, action: &Action) -> bool {
@@ -117,7 +117,7 @@ pub fn quiescence<T: BitInt, const N: usize>(
         alpha = stand_pat;
     }
 
-    let actions = board.list_actions();
+    let actions = board.actions();
     info.mobility[ply] = Some((actions.len(), board.state.moving_team));
 
     let mut captures = Vec::with_capacity(actions.len());
@@ -234,7 +234,7 @@ pub fn search<T: BitInt, const N: usize>(
         None => {}
     }
 
-    let actions = board.list_actions();
+    let actions = board.actions();
     info.mobility[ply] = Some((actions.len(), board.state.moving_team));
 
     let two_ply = match board.history.get(board.history.len().wrapping_sub(2)) {
@@ -452,7 +452,7 @@ pub fn search<T: BitInt, const N: usize>(
 
 pub fn create_search_info<T: BitInt, const N: usize>(board: &mut Board<T, N>) -> SearchInfo {
     let squares = (board.game.bounds.rows * board.game.bounds.cols) as usize;
-    let pieces = board.game.pieces.len() as usize;
+    let pieces = 6;
 
     let mut info = SearchInfo {
         root_depth: 0,

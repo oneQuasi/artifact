@@ -12,7 +12,7 @@ pub fn team_to_move<T: BitInt, const N: usize>(board: &mut Board<T, N>) -> i32 {
     }
 }
 
-pub const MOBILITY: i32 = 2;
+pub const MOBILITY: i32 = 3;
 
 pub const MATERIAL: [ i32; 6 ] = MG_MATERIAL;
 
