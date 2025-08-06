@@ -1,6 +1,6 @@
 use std::{io, process, thread, time::Duration};
 
-use chessing::{chess::Chess, game::{GameTemplate, Team}, uci::{parse::{GoOption, UciCommand, UciPosition}, respond::Info, Uci}};
+use chessing::{chess::{Chess, MagicMoves}, game::{GameTemplate, Team}, uci::{parse::{GoOption, UciCommand, UciPosition}, respond::Info, Uci}};
 use search::{create_search_info, iterative_deepening, search, SearchInfo};
 use util::{current_time_millis, BENCH};
 
@@ -12,7 +12,7 @@ fn main() {
     let uci = Uci { log: true };
     let stdin = io::stdin();
 
-    let chess = Chess::create::<u64, 6>();
+    let chess = Chess::<MagicMoves>::create::<u64, 6>();
     let mut board = chess.default();
 
     let mut info = create_search_info(&mut board);
